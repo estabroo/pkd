@@ -21,6 +21,7 @@
 #include <linux/scatterlist.h>
 #include <linux/netfilter/x_tables.h>
 #include <asm/byteorder.h>
+#include <asm/semaphore.h>
 
 #include "ipt_pkd.h"
 
@@ -28,16 +29,25 @@ MODULE_AUTHOR("Eric Estabrooks <eric@urbanrage.com>");
 MODULE_DESCRIPTION("IP tables port knock detection");
 MODULE_LICENSE("GPL");
 
+#if 0
 static void hexdump(unsigned char *buf, unsigned int len)
 {
-        while (len--)
-                printk("%02x", *buf++);
-
-        printk("\n");
+  while (len--) {
+    printk("%02x", *buf++);
+  }
+  printk("\n");
 }
+#endif
 
+#define _PKD_BUFFERS 4
 
-static char check[] = "PKD0";
+struct _pkd_buff {
+  struct semaphore sem;
+  char*            sbuff;
+};
+
+static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
+static char  check[] = "PKD0";
 
 static int
 ipt_pkd_match(const struct sk_buff *skb,
@@ -48,7 +58,6 @@ ipt_pkd_match(const struct sk_buff *skb,
     struct iphdr*              iph;
     struct udphdr*             uh;
     struct udphdr              _udph;
-    char*                      sbuff; /* buffer for scatter */
     char*                      pdata;
     char                       result[64];
     struct scatterlist         sg[1];
@@ -57,6 +66,9 @@ ipt_pkd_match(const struct sk_buff *skb,
     int                        i;
     int                        err;
     int                        ret = 0;
+    int                        count;
+    int                        tcount;
+    int                        least;
     unsigned short             len;
     struct timeval             current_time;
     time_t                     tpacket_time;
@@ -66,7 +78,6 @@ ipt_pkd_match(const struct sk_buff *skb,
 
     iph = ip_hdr(skb);
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
-      printk("ipt_pkd: proto not udp\n");
       return 0;
     }
     uh = skb_header_pointer(skb, protoff, sizeof(_udph), &_udph);
@@ -74,19 +85,15 @@ ipt_pkd_match(const struct sk_buff *skb,
     len = __swab16(uh->len);
 #endif
     if (len != 64) { /* pkd is 64 bytes */
-      //printk("ipt_pkd: wrong packet size: %d != 64, [%d][%d]\n", len, __swab16(uh->source), __swab16(uh->dest));
       return 0;
     }
     pdata = (void *)uh + 8;
     
     for (i=0; i < 4; i++) {
       if (pdata[i] != check[i]) {
-        //printk("ipt_pkd: header check failed: %d 0x%02x 0x%02x\n", i, pdata[i], check[i]);
         return 0;
       }
     }
-
-    printk("ipt_pkd: detected a port knock, checking validity\n");
 
     /* check time interval */
     do_gettimeofday(&current_time);
@@ -104,46 +111,60 @@ ipt_pkd_match(const struct sk_buff *skb,
 
     pdiff = abs(current_time.tv_sec - packet_time);
     if (pdiff > info->window) { /* packet outside of time window */
-      printk("ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff); 
+      printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff); 
       return 0;
     }
-    
-    sbuff = kmalloc(64, GFP_KERNEL); /* slab this? or make a spinloc on a static buffer */
-    if (sbuff == NULL) {
-      printk("ipt_pkd: couldn't allocate memory\n");
-      return 0;
+
+    /* acquire a buffer to use, keep track of least used semaphore and sleep on it */
+    i = 0;
+    err = down_trylock(&pkd_buffers[i].sem);
+    count = atomic_read(&pkd_buffers[i].sem.count);
+    least = 0;
+    if (err != 0) {
+      for (i=1; i < _PKD_BUFFERS; i++) {
+        err = down_trylock(&pkd_buffers[i].sem);
+        if (err == 0) break;
+        tcount = atomic_read(&pkd_buffers[i].sem.count);
+        if (tcount > count) {
+          count = tcount;
+          least = i;
+        }
+      }
+      printk(KERN_DEBUG "ipt_pkd: thread had to sleep :(\n");
+      err = down_interruptible(&pkd_buffers[least].sem);
+      while (err != 0) { /* need to check what kind of error? */
+        printk(KERN_DEBUG "ipt_pkd: thread had to sleep(2) :(\n");
+        err = down_interruptible(&pkd_buffers[least].sem);
+      }
     }
 
     tfm = crypto_alloc_hash("sha256", 0, CRYPTO_ALG_ASYNC);
     if (IS_ERR(tfm)) {
       printk("ipt_pkd: failed to load transform for sha256: %ld\n", PTR_ERR(tfm));
-      kfree(sbuff);
+      up(&pkd_buffers[i].sem);
       return 0;
     }
 
     desc.tfm = tfm;
     desc.flags = 0;
     
-    memcpy(sbuff, pdata, 24);
-    memcpy(sbuff+24, info->secret, PKD_SECRET_SIZE);
+    memcpy(pkd_buffers[i].sbuff, pdata, 24);
+    memcpy(pkd_buffers[i].sbuff+24, info->secret, PKD_SECRET_SIZE);
 
-    sg_set_buf(&sg[0], sbuff, 24+PKD_SECRET_SIZE);
-
-    printk("ipt_pkd: about to hash\n");
+    sg_set_buf(&sg[0], pkd_buffers[i].sbuff, 24+PKD_SECRET_SIZE);
 
     err = crypto_hash_digest(&desc, sg, 24+PKD_SECRET_SIZE, result);
     if (err) {
-      printk("ipt_pkd: digest sha256 failed, err = %d\n", err);
-      kfree(sbuff);
+      printk(KERN_WARNING "ipt_pkd: digest sha256 failed, err = %d\n", err);
       crypto_free_hash(tfm);
+      up(&pkd_buffers[i].sem);
       return 0;
     }
 
     ret = memcmp(result, &pdata[24], crypto_hash_digestsize(tfm));
-    kfree(sbuff);
     crypto_free_hash(tfm);
     
-    printk("ipt_pkd: memcmp result %d\n", ret);
+    up(&pkd_buffers[i].sem);
     return (!ret);
 }
 
@@ -172,13 +193,32 @@ static struct xt_match pkd_match = {
 static int __init ipt_pkd_init(void)
 {
 	int err;
-
+    int i;
+    
+    for (i=0; i < _PKD_BUFFERS; i++) {
+      sema_init(&pkd_buffers[i].sem, 1);
+      pkd_buffers[i].sbuff = kmalloc(64, GFP_KERNEL);
+      if (pkd_buffers[i].sbuff == NULL) {
+        for (--i; i >= 0; i--) {
+          kfree(pkd_buffers[i].sbuff);
+          pkd_buffers[i].sbuff = NULL;
+        }
+        return -ENOMEM;
+      }
+    }
 	err = xt_register_match(&pkd_match);
 	return err;
 }
 
 static void __exit ipt_pkd_exit(void)
 {
+    int i;
+    
+    for (i=0; i < _PKD_BUFFERS; i++) {
+      if (pkd_buffers[i].sbuff != NULL) {
+        kfree(pkd_buffers[i].sbuff);
+      }
+    }
 	xt_unregister_match(&pkd_match);
 }
 
