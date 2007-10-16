@@ -100,16 +100,6 @@ int main (int argc, char* argv[]) {
      usage(argv);
    }
    
-   if (argc == 2) {
-     port = random() % 64000;
-   } else {
-     port = atoi(argv[2]);
-   }
-
-   if (port < 1024) {
-     port += 1024;
-   }
-
    /* get secret */
    memset(&term, 0, sizeof(term));
    err = tcgetattr(fileno(stdin), &term);
@@ -137,6 +127,7 @@ int main (int argc, char* argv[]) {
 
    sfd = setup_udp_socket(argv[1], port);
 
+
    /* get some random bits */
    fd = open("/dev/urandom", O_RDONLY);
    if (fd >= 0) {
@@ -146,6 +137,15 @@ int main (int argc, char* argv[]) {
      for (i=0; i < 12; i++) {
        randbits[i] = random() % 256;
      }
+   }
+
+   if (argc == 3) {
+     port = atoi(argv[2]);
+   } else {
+     port = randbits[3] << 8 | randbits[7];
+   }
+   if (port < 1024) {
+     port += 1024;
    }
 
    /* get ready to make the packet */
@@ -174,12 +174,6 @@ int main (int argc, char* argv[]) {
    }
 
    memcpy(&packet[24], secret, PKD_SECRET_SIZE);
-/*
-   for (i=0; i < 64; i++) {
-   	fprintf(stderr, "%02x", packet[i]);
-   }
-   fprintf(stderr, "\n");
-*/
 
    /* do the hash */
    err = SHA256_Update(&sha_c, packet, 64);
@@ -200,12 +194,6 @@ int main (int argc, char* argv[]) {
 
    /* send the packet */
    write(sfd, packet, 24+SHA256_DIGEST_LENGTH);
-/*
-   for (i=0; i < 56; i++) {
-   	fprintf(stderr, "%02x", packet[i]);
-   }
-   fprintf(stderr, "\n");
-*/
    close(sfd);
    exit(0);
 }
