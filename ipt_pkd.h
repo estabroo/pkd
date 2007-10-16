@@ -14,7 +14,7 @@
 
 struct ipt_pkd_info {
     unsigned long window;
-	char          secret[PKD_SECRET_SIZE];
+    unsigned char secret[PKD_SECRET_SIZE];
 };
 
 #endif
