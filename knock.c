@@ -91,7 +91,7 @@ int main (int argc, char* argv[]) {
    struct termios     term;
    char*              ptr;
    char               secret[PKD_SECRET_SIZE+1];
-   unsigned char      packet[24+SHA256_DIGEST_LENGTH];
+   unsigned char      packet[64];
    unsigned char      randbits[12];
    SHA256_CTX         sha_c;
    unsigned char      md[SHA256_DIGEST_LENGTH];
@@ -123,11 +123,17 @@ int main (int argc, char* argv[]) {
      perror("Couldn't set terminal attributes");
      exit(0);
    }
+   memset(secret, 0, sizeof(secret));
    fprintf(stderr, "secret: ");
    ptr = fgets(secret, PKD_SECRET_SIZE+1, stdin);
    fprintf(stderr, "\n");
    term.c_lflag |= ECHO;
    err = tcsetattr(fileno(stdin), TCSANOW, &term);
+
+   if (secret[strlen(secret)-1] = '\n') {
+   	secret[strlen(secret)-1] = '\0';
+   }
+   fprintf(stderr, "secret[%s]\n", secret);
 
    sfd = setup_udp_socket(argv[1], port);
 
@@ -167,15 +173,18 @@ int main (int argc, char* argv[]) {
      packet[12+i] = randbits[i];
    }
 
+   memcpy(&packet[24], secret, PKD_SECRET_SIZE);
+/*
+   for (i=0; i < 64; i++) {
+   	fprintf(stderr, "%02x", packet[i]);
+   }
+   fprintf(stderr, "\n");
+*/
+
    /* do the hash */
-   err = SHA256_Update(&sha_c, packet, 24);
+   err = SHA256_Update(&sha_c, packet, 64);
    if (err == 0) {
      fprintf(stderr, "SHA256_Update failed %d\n", err);
-     exit(0);
-   }
-   err = SHA256_Update(&sha_c, secret, PKD_SECRET_SIZE);
-   if (err == 0) {
-     fprintf(stderr, "SHA256_Update failed\n");
      exit(0);
    }
    err = SHA256_Final(md, &sha_c);
@@ -190,7 +199,13 @@ int main (int argc, char* argv[]) {
    }
 
    /* send the packet */
-   write(sfd, packet, sizeof(packet));
+   write(sfd, packet, 24+SHA256_DIGEST_LENGTH);
+/*
+   for (i=0; i < 56; i++) {
+   	fprintf(stderr, "%02x", packet[i]);
+   }
+   fprintf(stderr, "\n");
+*/
    close(sfd);
    exit(0);
 }
