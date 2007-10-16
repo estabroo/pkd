@@ -15,12 +15,12 @@
 #include "ipt_pkd.h"
 
 static struct option opts[] = {
-	{ .name = "secret",      .has_arg = 1, .flag = 0, .val = 'S' }, 
+	{ .name = "secret",      .has_arg = 1, .flag = 0, .val = 's' }, 
 	{ .name = 0,          .has_arg = 0, .flag = 0, .val = 0   }
 };
 
 static void help(void) {
-  printf("recent v%s options:\n"
+  printf("pkd v0.2 options:\n"
          " --secret secret   up to %d byte shared secret.\n", PKD_SECRET_SIZE);
 }
   
@@ -35,9 +35,10 @@ static int parse(int c, char **argv, int invert, unsigned int *flags, const stru
                  unsigned int *nfcache, struct ipt_entry_match **match) {
   struct ipt_pkd_info *info = (struct ipt_pkd_info *)(*match)->data;
   
-  if (c == 'S') {
+  if (c == 's') {
     memset(info->secret, 0, PKD_SECRET_SIZE);
     strncpy(info->secret, optarg, PKD_SECRET_SIZE);
+    *flags = 1;
     return 1;
   }
   
@@ -71,21 +72,19 @@ static void save(const struct ipt_ip *ip, const struct ipt_entry_match *match) {
 }
 
 static struct iptables_match pkd = { 
-    .next          = NULL,
     .name          = "pkd",
     .version       = IPTABLES_VERSION,
     .size          = IPT_ALIGN(sizeof(struct ipt_pkd_info)),
     .userspacesize = IPT_ALIGN(sizeof(struct ipt_pkd_info)),
-    .help          = &help,
-    .init          = &init,
-    .parse         = &parse,
-    .final_check   = &final_check,
-    .print         = &print,
-    .save          = &save,
+    .help          = help,
+    .init          = init,
+    .parse         = parse,
+    .final_check   = final_check,
+    .print         = print,
+    .save          = save,
     .extra_opts    = opts
 };
 
-void _init(void)
-{
+void _init(void) {
 	register_match(&pkd);
 }

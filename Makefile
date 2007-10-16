@@ -12,19 +12,19 @@ all: lib module
 install: install-lib install-module
 
 clean:
-	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp*
+	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers
 
 libipt_pkd.o: libipt_pkd.c
-	${CC} -c -DIPTABLES_VERSION=\"1.3.8\" -o $@ $+
+	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"1.3.8\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
-	${LD} -shared -o $@ $+
+	${CC} -fPIC -shared -o $@ $+
 
 .PHONY: lib
 lib: libipt_pkd.so
 
 install-lib: lib
-	${CP} -a libipt_pkd.so /lib/iptables/
+	install -s -m 0644 -o root -g root -t /lib/iptables libipt_pkd.so
 
 obj-m := ipt_pkd.o
 ipt_pkd-objs := pkd.o
