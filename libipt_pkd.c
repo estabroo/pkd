@@ -15,7 +15,8 @@
 #include "ipt_pkd.h"
 
 static struct option opts[] = {
-	{ .name = "secret",      .has_arg = 1, .flag = 0, .val = 's' }, 
+	{ .name = "secret",   .has_arg = 1, .flag = 0, .val = 's' },
+    { .name = "window",   .has_arg = 1, .flag = 0, .val = 'w' },
 	{ .name = 0,          .has_arg = 0, .flag = 0, .val = 0   }
 };
 
@@ -24,25 +25,37 @@ static void help(void) {
          " --secret secret   up to %d byte shared secret.\n", PKD_SECRET_SIZE);
 }
   
-static void init(struct ipt_entry_match *match, unsigned int *nfcache) {
-  struct ipt_pkd_info *info = (struct ipt_pkd_info *)(match)->data;
+static void init(struct ipt_entry_match* match, unsigned int* nfcache) {
+  struct ipt_pkd_info* info = (void *)(match)->data;
 
   memset(info->secret, 0, sizeof(PKD_SECRET_SIZE));
   strncpy(info->secret,"AbC123kajsdf987nacva", PKD_SECRET_SIZE);
+  info->window = 10;
 }
 
-static int parse(int c, char **argv, int invert, unsigned int *flags, const struct ipt_entry *entry,
-                 unsigned int *nfcache, struct ipt_entry_match **match) {
-  struct ipt_pkd_info *info = (struct ipt_pkd_info *)(*match)->data;
-  
-  if (c == 's') {
+static int parse(int c, char** argv, int invert, unsigned int* flags, const struct ipt_entry* entry,
+                 unsigned int* nfcache, struct ipt_entry_match** match) {
+  struct ipt_pkd_info* info = (void *)(*match)->data;
+  int                  ret = 0;
+
+  switch (c) {
+  case 's' : {
     memset(info->secret, 0, PKD_SECRET_SIZE);
     strncpy(info->secret, optarg, PKD_SECRET_SIZE);
     *flags = 1;
-    return 1;
-  }
-  
-  return 0;
+    ret = 1;
+  }; break;
+  case 'w' : {
+    info->window = atol(optarg);
+    if (info->window != 0) {
+      ret = 1;
+    }
+    *flags = 1;
+  }; break;
+  default: ret = 0;
+  };
+
+  return ret;
 }
 
 static void final_check(unsigned int flags)
@@ -53,8 +66,8 @@ static void final_check(unsigned int flags)
   }
 }
 
-static void print(const struct ipt_ip *ip, const struct ipt_entry_match *match, int numeric) {
-  struct ipt_pkd_info *info = (void *)match->data;
+static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, int numeric) {
+  struct ipt_pkd_info* info = (void *)match->data;
   
   printf("pkd: ");
   if(info->secret) {
@@ -63,8 +76,8 @@ static void print(const struct ipt_ip *ip, const struct ipt_entry_match *match, 
   printf("\n");
 }
 
-static void save(const struct ipt_ip *ip, const struct ipt_entry_match *match) {
-  struct ipt_pkd_info *info = (void *)match->data;
+static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match) {
+  struct ipt_pkd_info* info = (void *)match->data;
 
   if (info->secret) {
     printf("--secret %s ",info->secret);

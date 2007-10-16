@@ -13,7 +13,8 @@
 #define PKD_SECRET_SIZE 40
 
 struct ipt_pkd_info {
-	char secret[PKD_SECRET_SIZE];
+    unsigned long window;
+	char          secret[PKD_SECRET_SIZE];
 };
 
 #endif

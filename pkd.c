@@ -20,6 +20,7 @@
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
 #include <linux/netfilter/x_tables.h>
+#include <asm/byteorder.h>
 
 #include "ipt_pkd.h"
 
@@ -38,7 +39,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     const struct ipt_pkd_info* info = matchinfo;
     struct iphdr*       iph;
     struct udphdr*      uh;
-    char*               udp_data;
+    char*               pdata;
     char                result[64];
     struct scatterlist  sg[2];
     struct crypto_hash* tfm;
@@ -46,6 +47,9 @@ ipt_pkd_match(const struct sk_buff *skb,
     int                 i;
     int                 err;
     int                 ret = 0;
+    struct timeval      current_time;
+    time_t              packet_time;
+    unsigned long       pdiff;
 
     iph = ip_hdr(skb);
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
@@ -55,14 +59,33 @@ ipt_pkd_match(const struct sk_buff *skb,
     if (uh->len != 64) { /* pkd is 64 bytes */
       return 0;
     }
-    udp_data = (void *)uh + 8;
+    pdata = (void *)uh + 8;
     
     for (i=0; i < 4; i++) {
-      if (udp_data[i] != check[i]) {
+      if (pdata[i] != check[i]) {
         return 0;
       }
     }
+
     printk("ipt_pkd: detected a port knock, checking validity\n");
+
+    /* check time interval */
+    do_gettimeofday(&current_time);
+    packet_time = 0;
+    memcpy(&packet_time, &pdata[4], sizeof(time_t));
+#ifdef __BIG_ENDIAN
+    if (sizeof(time_t) == 4) {
+      __swab32(__le32(packet_time));
+    } else {
+      __swab64(__le64(packet_time));
+    }
+#endif
+
+    pdiff = abs(current_time.tv_sec - packet_time);
+    if (pdiff > info->window) { /* packet outside of time window */
+      return 0;
+    }
+
     tfm = crypto_alloc_hash("sha256", 0, CRYPTO_ALG_ASYNC);
     if (IS_ERR(tfm)) {
       printk("ipt_pkd: failed to load transform for sha256: %ld\n", PTR_ERR(tfm));
@@ -71,17 +94,17 @@ ipt_pkd_match(const struct sk_buff *skb,
     desc.tfm = tfm;
     desc.flags = 0;
 
-    sg_set_buf(&sg[0], udp_data, 24);
+    sg_set_buf(&sg[0], pdata, 24);
     sg_set_buf(&sg[1], info->secret, PKD_SECRET_SIZE);
 
-    err = crypto_hash_digest(&desc, sg, 64, result);
+    err = crypto_hash_digest(&desc, sg, 24+PKD_SECRET_SIZE, result);
     if (err) {
-      printk("digest sha256 failed, err = %d\n", err);
+      printk("ipt_pkd: digest sha256 failed, err = %d\n", err);
       crypto_free_hash(tfm);
       return 0;
     }
     
-    ret = memcmp(result, &udp_data[32], crypto_hash_digestsize(tfm));
+    ret = memcmp(result, &pdata[32], crypto_hash_digestsize(tfm));
     crypto_free_hash(tfm);
 
     return (!ret);
