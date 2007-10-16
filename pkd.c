@@ -83,6 +83,7 @@ ipt_pkd_match(const struct sk_buff *skb,
 
     pdiff = abs(current_time.tv_sec - packet_time);
     if (pdiff > info->window) { /* packet outside of time window */
+      printk("ipt_pkd: packet outside of time window, replay attack?\n");
       return 0;
     }
 

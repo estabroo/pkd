@@ -8,11 +8,14 @@ DESTDIR=/usr/local
 
 EXTRA_CFLAGS := -I.
 
-all: lib module
+all: knock lib module
 install: install-lib install-module
 
 clean:
-	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers
+	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers knock
+
+knock: knock.o
+	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
 	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"1.3.8\" -o $@ $+

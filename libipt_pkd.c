@@ -71,7 +71,10 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
   
   printf("pkd: ");
   if(info->secret) {
-    printf("secret: %s ",info->secret);
+    printf("secret: %s ", info->secret);
+  }
+  if (info->window) {
+    printf("window: %lu ", info->window);
   }
   printf("\n");
 }
