@@ -90,7 +90,7 @@ int main (int argc, char* argv[]) {
    struct timeval     current_time;
    struct termios     term;
    char*              ptr;
-   char               secret[PKD_SECRET_SIZE+1];
+   char               key[PKD_KEY_SIZE+1];
    unsigned char      packet[64];
    unsigned char      randbits[12];
    SHA256_CTX         sha_c;
@@ -100,7 +100,7 @@ int main (int argc, char* argv[]) {
      usage(argv);
    }
    
-   /* get secret */
+   /* get key */
    memset(&term, 0, sizeof(term));
    err = tcgetattr(fileno(stdin), &term);
    if (err != 0) {
@@ -113,17 +113,17 @@ int main (int argc, char* argv[]) {
      perror("Couldn't set terminal attributes");
      exit(0);
    }
-   memset(secret, 0, sizeof(secret));
-   fprintf(stderr, "secret: ");
-   ptr = fgets(secret, PKD_SECRET_SIZE+1, stdin);
+   memset(key, 0, sizeof(key));
+   fprintf(stderr, "key: ");
+   ptr = fgets(key, PKD_KEY_SIZE+1, stdin);
    fprintf(stderr, "\n");
    term.c_lflag |= ECHO;
    err = tcsetattr(fileno(stdin), TCSANOW, &term);
 
-   if (secret[strlen(secret)-1] = '\n') {
-   	secret[strlen(secret)-1] = '\0';
+   if (key[strlen(key)-1] = '\n') {
+   	key[strlen(key)-1] = '\0';
    }
-   fprintf(stderr, "secret[%s]\n", secret);
+   fprintf(stderr, "key[%s]\n", key);
 
    sfd = setup_udp_socket(argv[1], port);
 
@@ -173,7 +173,7 @@ int main (int argc, char* argv[]) {
      packet[12+i] = randbits[i];
    }
 
-   memcpy(&packet[24], secret, PKD_SECRET_SIZE);
+   memcpy(&packet[24], key, PKD_KEY_SIZE);
 
    /* do the hash */
    err = SHA256_Update(&sha_c, packet, 64);

@@ -10,11 +10,11 @@
 #ifndef _ipt_pkd_h_
 #define _ipt_pkd_h_
 
-#define PKD_SECRET_SIZE 40
+#define PKD_KEY_SIZE 40
 
 struct ipt_pkd_info {
     unsigned long window;
-    unsigned char secret[PKD_SECRET_SIZE];
+    unsigned char key[PKD_KEY_SIZE];
 };
 
 #endif

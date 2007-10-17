@@ -158,11 +158,11 @@ ipt_pkd_match(const struct sk_buff *skb,
     desc.flags = 0;
     
     memcpy(pkd_buffers[i].sbuff, pdata, 24);
-    memcpy(pkd_buffers[i].sbuff+24, info->secret, PKD_SECRET_SIZE);
+    memcpy(pkd_buffers[i].sbuff+24, info->key, PKD_KEY_SIZE);
 
-    sg_set_buf(&sg[0], pkd_buffers[i].sbuff, 24+PKD_SECRET_SIZE);
+    sg_set_buf(&sg[0], pkd_buffers[i].sbuff, 24+PKD_KEY_SIZE);
 
-    err = crypto_hash_digest(&desc, sg, 24+PKD_SECRET_SIZE, result);
+    err = crypto_hash_digest(&desc, sg, 24+PKD_KEY_SIZE, result);
     if (err) {
       printk(KERN_WARNING "ipt_pkd: digest sha256 failed, err = %d\n", err);
       crypto_free_hash(tfm);

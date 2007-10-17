@@ -15,22 +15,22 @@
 #include "ipt_pkd.h"
 
 static struct option opts[] = {
-	{ .name = "secret",   .has_arg = 1, .flag = 0, .val = 's' },
+	{ .name = "key",      .has_arg = 1, .flag = 0, .val = 'k' },
     { .name = "window",   .has_arg = 1, .flag = 0, .val = 'w' },
 	{ .name = 0,          .has_arg = 0, .flag = 0, .val = 0   }
 };
 
 static void help(void) {
   printf("pkd v0.2 options:\n"
-         " --secret secret   up to %d byte shared secret. use 0x to indicate the secret in hex\n", PKD_SECRET_SIZE,
-         "                   for example 0xab03be805172\n");
+         " --key key   up to %d byte shared key. use 0x to indicate the key in hex\n", PKD_KEY_SIZE,
+         "                for example 0xab03be805172\n");
 }
   
 static void init(struct ipt_entry_match* match, unsigned int* nfcache) {
   struct ipt_pkd_info* info = (void *)(match)->data;
 
-  memset(info->secret, 0, sizeof(PKD_SECRET_SIZE));
-  strncpy(info->secret,"AbC123kajsdf987nacva", PKD_SECRET_SIZE);
+  memset(info->key, 0, sizeof(PKD_KEY_SIZE));
+  strncpy(info->key,"AbC123kajsdf987nacva", PKD_KEY_SIZE);
   info->window = 10;
 }
 
@@ -45,20 +45,20 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
   
   switch (c) {
   case 's' : {
-    memset(info->secret, 0, PKD_SECRET_SIZE);
+    memset(info->key, 0, PKD_KEY_SIZE);
     if (optarg[0] == '0' && optarg[1] == 'x') {
-      for (i=2,j=0; i < PKD_SECRET_SIZE*2+2; i++,j++) {
+      for (i=2,j=0; i < PKD_KEY_SIZE*2+2; i++,j++) {
         if (!isxdigit(optarg[i])) break;
         h = hex(tolower(optarg[i])) << 4;
         if (!isxdigit(optarg[++i])) { /* no lower nibble, make it a 0 */
-          info->secret[j++] = h;
+          info->key[j++] = h;
           break;
         }
-        h |= hex(tolower(optarg[i+1]));
-        info->secret[j] = h;
+        h |= hex(tolower(optarg[i]));
+        info->key[j] = h;
       }
     } else {
-      strncpy(info->secret, optarg, PKD_SECRET_SIZE); /* its okay if the secret isn't null terminated */
+      strncpy(info->key, optarg, PKD_KEY_SIZE); /* its okay if the key isn't null terminated */
     }
     *flags = 1;
     ret = 1;
@@ -80,7 +80,7 @@ static void final_check(unsigned int flags)
 {
 
   if (!flags) {
-    exit_error(PARAMETER_PROBLEM, "pkd: you must specify a secret `--secret secret'");
+    exit_error(PARAMETER_PROBLEM, "pkd: you must specify a key `--key key'");
   }
 }
 
@@ -89,10 +89,10 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
   int i;
 
   printf("pkd: ");
-  if(info->secret) {
-    printf("secret: 0x");
-    for (i=0; i < PKD_SECRET_SIZE; i++) {
-      printf("%02x", info->secret[i]);
+  if(info->key) {
+    printf("key: 0x");
+    for (i=0; i < PKD_KEY_SIZE; i++) {
+      printf("%02x", info->key[i]);
     }
     printf(" ");
   }
@@ -105,8 +105,8 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
 static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match) {
   struct ipt_pkd_info* info = (void *)match->data;
 
-  if (info->secret) {
-    printf("--secret %s ",info->secret);
+  if (info->key) {
+    printf("--key %s ",info->key);
   }
 }
 
