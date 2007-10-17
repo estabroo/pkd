@@ -85,21 +85,29 @@ ipt_pkd_match(const struct sk_buff *skb,
     unsigned long              pdiff;
     const struct ipt_pkd_info* info = matchinfo;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+    iph = skb->nh.iph;
+#else
     iph = ip_hdr(skb);
+#endif
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
+	printk(KERN_CRIT "ipt_pkd: not udp packet\n");
       return 0;
     }
+
     uh = skb_header_pointer(skb, protoff, sizeof(_udph), &_udph);
 #ifndef __BIG_ENDIAN
     len = __swab16(uh->len);
 #endif
     if (len != 64) { /* pkd is 64 bytes */
+	printk(KERN_CRIT "ipt_pkd: wrong length\n");
       return 0;
     }
     pdata = (void *)uh + 8;
     
     for (i=0; i < 4; i++) {
       if (pdata[i] != check[i]) {
+	printk(KERN_CRIT "ipt_pkd: head check failed\n");
         return 0;
       }
     }
