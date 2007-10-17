@@ -1,0 +1,43 @@
+ipt_pkd is a port knock detector which when used in conjuction with ipt_recent gives you a decent port knocking system thats based in iptables.
+
+The knock packet is a sha256 of a timestamp, some random bytes, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
+
+ipt_pkd has two options:
+--key <key>       set the shared key its up to 40 bytes long and can be entered in as hex by starting it with 0x.
+                  The remainder of the key is zero filled.      --key 0xaa09e4ff
+--window <time>   Time in seconds +- that the packet can be different from the computer.  Default is 10 which
+                  gives a 20 second window for the packet to arrive.  If your clocks are close in time you can
+                  reduce that, say if they are synced to an ntp server.
+
+Some examples:
+
+Protecting ssh (port 22).
+
+iptables -A INPUT -p udp -m pkd --key test -m recent --set --name PKD
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --rcheck --name PKD --seconds 60 --hitcount 1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -j DROP
+
+These rules will drop any new ssh connection attempts unless a valid knock packet was seen for the incoming client ip in the last 60 seconds.  You can use hitcount to control how many times you have to knock, though in the above rules you'd also need to change the --set to --update otherwise the hitcount wouldn't go over 1.  You could also use it to control how long a session could be by adding a drop on all packets to --dport 22 and setting --seconds to be how long you wanted a session to last.
+
+iptables -A INPUT -p udp -m pkd --key 0xAA0693aB -m recent --set --name PKD
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --rcheck --name PKD --seconds 60 --hitcount 1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -m state --state ESTABLISHED,RELATED -m recent --name PKD --rcheck --seconds 600 -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j DROP
+
+
+libipt_pkd.c  -- iptables user space portion, becomes libipt_pkd.so 
+pkd.c         -- iptables kernel portion,     becomes ipt_pkd.ko
+knock.c       -- client knock program         becomes knock
+ipt_pkd.h     -- common header
+
+
+To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  The install installs libipt_pkd.so in /lib/iptables, it uses the kernel module installer so who knows where it puts it.  Sometimes you have to manually run depmod -a afterward, if you see an error like, iptables: No chain/target/match by that name, then most likely depmod -a will fix it. On my system its been putting the module in /lib/modules/<kernel>/extra.  knock doesn't get put anywhere so put it whereever. I'm guessing if packaged it'll end up in /usr/bin or /usr/local/bin.
+
+You might need to adjust the IPTABLES_VERSION from 1.3.8 if you have something different on your system.  For example on ubuntu fiesty (at least for me) it was 1.3.6.
+
+I've done testing on Ubuntu Fiesty 2.6.20-16/1.3.6, Debian unstable 2.6.22-2-686/1.3.8, and sidux ustable 2.6.23
+If you come across any problems please let me know, or if you have patches for other kernels/iptables
+
+Eric 
+
+eric@urbanrage.com

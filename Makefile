@@ -18,7 +18,7 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
-	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"1.3.6\" -o $@ $+
+	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"1.3.8\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+
