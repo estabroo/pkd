@@ -21,10 +21,12 @@ static struct option opts[] = {
 };
 
 static void help(void) {
-  printf("pkd v%s options:\n", PKD_VERSION,
-           " --key key      up to %d byte shared key. use 0x to indicate the key in hex\n", PKD_KEY_SIZE,
-           "                for example 0xab03be805172\n"
-           " --window time  time in seconds +- that the packet can arrive in, defaults to 10 giving a 20 second window\n");
+  printf("pkd v%s options:\n" 
+         "    --key key      up to %d byte shared key. use 0x to indicate the key in hex,\n"
+         "                   for example --key 0xab03be805172 or --key test.\n"
+         "    --window time  window in seconds +- in which the packet can arrive.\n"
+         "                   defaults to 10 giving a 20 second window.\n",
+         PKD_VERSION, PKD_KEY_SIZE);
 }
   
 static void init(struct ipt_entry_match* match, unsigned int* nfcache) {

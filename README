@@ -1,6 +1,6 @@
 ipt_pkd is a port knock detector which when used in conjuction with ipt_recent gives you a decent port knocking system thats based in iptables.
 
-The knock packet is a sha256 of a timestamp, some random bytes, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
+The knock packet is a sha256 of a timestamp, some random bytes, a small header, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
 
 ipt_pkd has two options:
 --key <key>       set the shared key its up to 40 bytes long and can be entered in as hex by starting it with 0x.
@@ -31,7 +31,7 @@ knock.c       -- client knock program         becomes knock
 ipt_pkd.h     -- common header
 
 
-To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  The make install you need to run as root. 
+To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
 
 libipt_pkd.so get installed in /lib/iptables, so if your iptables modules are in a different directory you'll need to move it.
 
@@ -45,6 +45,7 @@ Machines tested on:
 VMWare client 32 bit running Ubuntu Fiesty 2.6.20-16 kernel and iptables 1.3.6
 x86 32bit running Debian unstable 2.6.22-686 kernel and iptables 1.3.8
 x86_64 64bit running Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
+Sparc 64bit running Debian unstable 2.6.22-2-sparc64 kernel and iptables 1.3.8
 
 Eric 
 
