@@ -98,6 +98,8 @@ ipt_pkd_match(const struct sk_buff *skb,
     uh = skb_header_pointer(skb, protoff, sizeof(_udph), &_udph);
 #ifndef __BIG_ENDIAN
     len = __swab16(uh->len);
+#else
+	len = uh->len;
 #endif
     if (len != 64) { /* knock packet is 64 bytes, 8 header, 4 id, 8 time, 12 random, 32 sha256 */
       return 0;
@@ -116,7 +118,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     memcpy(&tpacket_time, &pdata[4], sizeof(time_t));
 #ifdef __BIG_ENDIAN
     if (sizeof(time_t) == 4) {
-     packet_time =  __swab32((__le32)tpacket_time);
+      packet_time =  __swab32((__le32)tpacket_time);
     } else {
       packet_time = __swab64((__le64)tpacket_time);
     }

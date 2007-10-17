@@ -1,6 +1,6 @@
 #!/usr/bin/make
 
-PKD_VERSION = 0.3
+PKD_VERSION = 0.4
 
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
@@ -36,7 +36,7 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
-	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -o $@ $+
+	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+

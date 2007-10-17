@@ -13,8 +13,8 @@
 #define PKD_KEY_SIZE 40
 
 struct ipt_pkd_info {
-    unsigned long window;
     unsigned char key[PKD_KEY_SIZE];
+    unsigned int  window;
 };
 
 #endif

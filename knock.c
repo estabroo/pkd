@@ -198,7 +198,12 @@ int main (int argc, char* argv[]) {
    }
 
    memcpy(&packet[24], key, PKD_KEY_SIZE);
-
+#if 0
+   for (i=0; i < 24+PKD_KEY_SIZE; i++) {
+     fprintf(stderr, "%02x", packet[i]);
+   }
+   fprintf(stderr, "\n");
+#endif
    /* do the hash */
    err = SHA256_Update(&sha_c, packet, 64);
    if (err == 0) {
