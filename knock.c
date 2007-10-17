@@ -81,16 +81,20 @@ void usage(char* argv[]) {
   exit(0);
 }
 
+#define hex(a) ((a) >= 'a' ? ((a) - 'a' + 10) : ((a) - '0'))
+
 int main (int argc, char* argv[]) {
    int                sfd;
    int                fd;
    int                port;
    int                err;
-   int                i;
+   int                i,j;
    struct timeval     current_time;
    struct termios     term;
    char*              ptr;
-   char               key[PKD_KEY_SIZE+1];
+   char               tkey[PKD_KEY_SIZE*2+3];
+   char               key[PKD_KEY_SIZE];
+   unsigned char      h;
    unsigned char      packet[64];
    unsigned char      randbits[12];
    SHA256_CTX         sha_c;
@@ -113,21 +117,39 @@ int main (int argc, char* argv[]) {
      perror("Couldn't set terminal attributes");
      exit(0);
    }
-   memset(key, 0, sizeof(key));
+   memset(tkey, 0, sizeof(tkey));
    fprintf(stderr, "key: ");
-   ptr = fgets(key, PKD_KEY_SIZE+1, stdin);
+   ptr = fgets(tkey, PKD_KEY_SIZE*2+3, stdin);
    fprintf(stderr, "\n");
    term.c_lflag |= ECHO;
    err = tcsetattr(fileno(stdin), TCSANOW, &term);
 
-   if (key[strlen(key)-1] = '\n') {
-   	key[strlen(key)-1] = '\0';
+   if (tkey[strlen(tkey)-1] = '\n') {
+     tkey[strlen(tkey)-1] = '\0';
    }
-   fprintf(stderr, "key[%s]\n", key);
-
-   sfd = setup_udp_socket(argv[1], port);
-
-
+   memset(key, 0, sizeof(key));
+   if (tkey[0] == '0' && tkey[1] == 'x') { /* entered in as hex, convert it */
+     for(i=2,j=0; j < PKD_KEY_SIZE; i++,j++) {
+       if (!isxdigit(tkey[i])) break;
+       h = hex(tolower(tkey[i])) << 4;
+       if (!isxdigit(tkey[++i])) {
+         key[j++] = h;
+         break;
+       }
+       h |= hex(tolower(ptr[i]));
+       key[j] = h;
+     }
+   } else {
+     strncpy(key, tkey, PKD_KEY_SIZE);
+   }
+   /*
+   fprintf(stderr, "key: 0x");
+   for(i=0; i < PKD_KEY_SIZE; i++) {
+     fprintf(stderr, "%02x", key[i]);
+   }
+   fprintf(stderr, "\n");
+   */
+   
    /* get some random bits */
    fd = open("/dev/urandom", O_RDONLY);
    if (fd >= 0) {
@@ -147,6 +169,8 @@ int main (int argc, char* argv[]) {
    if (port < 1024) {
      port += 1024;
    }
+
+   sfd = setup_udp_socket(argv[1], port);
 
    /* get ready to make the packet */
    err = SHA256_Init(&sha_c);
