@@ -22,6 +22,7 @@
 #include <linux/netfilter/x_tables.h>
 #include <asm/byteorder.h>
 #include <asm/semaphore.h>
+#include <asm/atomic.h>
 #include <linux/version.h>
 
 #include "ipt_pkd.h"
@@ -43,12 +44,15 @@ static void hexdump(unsigned char *buf, unsigned int len)
 #define _PKD_BUFFERS 4
 
 struct _pkd_buff {
-  struct semaphore sem;
-  char*            sbuff;
+  struct semaphore    sem;
+  struct crypto_hash* tfm;
+  unsigned char*      sbuff;
 };
 
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
 static char check[] = "PKD0";
+static unsigned char _pkd_next_sem = 0;
+static DEFINE_SPINLOCK(_pkd_lock);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static int
@@ -71,17 +75,14 @@ ipt_pkd_match(const struct sk_buff *skb,
     char*                      pdata;
     char                       result[64];
     struct scatterlist         sg[1];
-    struct crypto_hash*        tfm;
     struct hash_desc           desc;
     int                        i;
     int                        err;
-    int                        count;
-    int                        tcount;
-    int                        least;
     unsigned short             len;
     struct timeval             current_time;
     time_t                     tpacket_time;
     time_t                     packet_time;
+    unsigned char              wait_on_sem;
     unsigned long              pdiff;
     const struct ipt_pkd_info* info = matchinfo;
 
@@ -91,7 +92,6 @@ ipt_pkd_match(const struct sk_buff *skb,
     iph = ip_hdr(skb);
 #endif
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
-	printk(KERN_CRIT "ipt_pkd: not udp packet\n");
       return 0;
     }
 
@@ -99,15 +99,13 @@ ipt_pkd_match(const struct sk_buff *skb,
 #ifndef __BIG_ENDIAN
     len = __swab16(uh->len);
 #endif
-    if (len != 64) { /* pkd is 64 bytes */
-	printk(KERN_CRIT "ipt_pkd: wrong length\n");
+    if (len != 64) { /* knock packet is 64 bytes, 8 header, 4 id, 8 time, 12 random, 32 sha256 */
       return 0;
     }
     pdata = (void *)uh + 8;
     
-    for (i=0; i < 4; i++) {
+    for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock */
       if (pdata[i] != check[i]) {
-	printk(KERN_CRIT "ipt_pkd: head check failed\n");
         return 0;
       }
     }
@@ -125,44 +123,31 @@ ipt_pkd_match(const struct sk_buff *skb,
 #else
     packet_time = tpacket_time;
 #endif
-
     pdiff = abs(current_time.tv_sec - packet_time);
     if (pdiff > info->window) { /* packet outside of time window */
       printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff); 
       return 0;
     }
 
-    /* acquire a buffer to use, keep track of least used semaphore and sleep on it */
-    i = 0;
-    err = down_trylock(&pkd_buffers[i].sem);
-    count = atomic_read(&pkd_buffers[i].sem.count);
-    least = 0;
+    /* acquire a buffer to use, if none available wait */
+    for (i=0; i < _PKD_BUFFERS; i++) {
+      err = down_trylock(&pkd_buffers[i].sem);
+      if (err == 0) break;
+    }
     if (err != 0) {
-      for (i=1; i < _PKD_BUFFERS; i++) {
-        err = down_trylock(&pkd_buffers[i].sem);
-        if (err == 0) break;
-        tcount = atomic_read(&pkd_buffers[i].sem.count);
-        if (tcount > count) {
-          count = tcount;
-          least = i;
-        }
-      }
-      printk(KERN_DEBUG "ipt_pkd: thread had to sleep :(\n");
-      err = down_interruptible(&pkd_buffers[least].sem);
+      spin_lock_bh(&_pkd_lock);
+      wait_on_sem = _pkd_next_sem;
+      _pkd_next_sem = (_pkd_next_sem + 1) % _PKD_BUFFERS;
+      spin_unlock_bh(&_pkd_lock);
+      err = down_interruptible(&pkd_buffers[wait_on_sem].sem);
       while (err != 0) { /* need to check what kind of error? */
-        printk(KERN_DEBUG "ipt_pkd: thread had to sleep(2) :(\n");
-        err = down_interruptible(&pkd_buffers[least].sem);
+        err = down_interruptible(&pkd_buffers[wait_on_sem].sem);
       }
+      i = wait_on_sem; /* point at the right buffer */
     }
 
-    tfm = crypto_alloc_hash("sha256", 0, CRYPTO_ALG_ASYNC);
-    if (IS_ERR(tfm)) {
-      printk("ipt_pkd: failed to load transform for sha256: %ld\n", PTR_ERR(tfm));
-      up(&pkd_buffers[i].sem);
-      return 0;
-    }
-
-    desc.tfm = tfm;
+    memset(&desc, 0, sizeof(desc)); /* probably don't need to do this */
+    desc.tfm = pkd_buffers[i].tfm;
     desc.flags = 0;
     
     memcpy(pkd_buffers[i].sbuff, pdata, 24);
@@ -173,15 +158,13 @@ ipt_pkd_match(const struct sk_buff *skb,
     err = crypto_hash_digest(&desc, sg, 24+PKD_KEY_SIZE, result);
     if (err) {
       printk(KERN_WARNING "ipt_pkd: digest sha256 failed, err = %d\n", err);
-      crypto_free_hash(tfm);
       up(&pkd_buffers[i].sem);
       return 0;
     }
 
-    err = memcmp(result, &pdata[24], crypto_hash_digestsize(tfm));
-    crypto_free_hash(tfm);
-    
+    err = memcmp(result, &pdata[24], crypto_hash_digestsize(pkd_buffers[i].tfm));
     up(&pkd_buffers[i].sem);
+
     if (err == 0) {
       return 1;
     }
@@ -198,22 +181,39 @@ static struct xt_match pkd_match = {
 
 static int __init ipt_pkd_init(void)
 {
-	int err;
+    int err;
     int i;
-    
+  
+    _pkd_next_sem = 0;
+    memset(pkd_buffers, 0, sizeof(pkd_buffers));
     for (i=0; i < _PKD_BUFFERS; i++) {
       sema_init(&pkd_buffers[i].sem, 1);
-      pkd_buffers[i].sbuff = kmalloc(64, GFP_KERNEL);
-      if (pkd_buffers[i].sbuff == NULL) {
+      pkd_buffers[i].tfm = crypto_alloc_hash("sha256", 0, CRYPTO_ALG_ASYNC);
+      if (IS_ERR(pkd_buffers[i].tfm)) {
+        printk("ipt_pkd: failed to load transform for sha256: %ld\n", PTR_ERR(pkd_buffers[i].tfm));
         for (--i; i >= 0; i--) {
           kfree(pkd_buffers[i].sbuff);
           pkd_buffers[i].sbuff = NULL;
+	  crypto_free_hash(pkd_buffers[i].tfm);
+	  pkd_buffers[i].tfm = NULL;
+        }
+	return -EAGAIN;
+      }
+      pkd_buffers[i].sbuff = kmalloc(24+PKD_KEY_SIZE, GFP_KERNEL);
+      if (pkd_buffers[i].sbuff == NULL) {
+	crypto_free_hash(pkd_buffers[i].tfm);
+	pkd_buffers[i].tfm = NULL;
+        for (--i; i >= 0; i--) {
+          kfree(pkd_buffers[i].sbuff);
+          pkd_buffers[i].sbuff = NULL;
+	  crypto_free_hash(pkd_buffers[i].tfm);
+	  pkd_buffers[i].tfm = NULL;
         }
         return -ENOMEM;
       }
     }
-	err = xt_register_match(&pkd_match);
-	return err;
+    err = xt_register_match(&pkd_match);
+    return err;
 }
 
 static void __exit ipt_pkd_exit(void)
@@ -224,8 +224,11 @@ static void __exit ipt_pkd_exit(void)
       if (pkd_buffers[i].sbuff != NULL) {
         kfree(pkd_buffers[i].sbuff);
       }
+      if (pkd_buffers[i].tfm != NULL) {
+      	crypto_free_hash(pkd_buffers[i].tfm);
+      }
     }
-	xt_unregister_match(&pkd_match);
+    xt_unregister_match(&pkd_match);
 }
 
 module_init(ipt_pkd_init);
