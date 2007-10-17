@@ -44,7 +44,7 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
   struct ipt_pkd_info* info = (void *)(*match)->data;
   
   switch (c) {
-  case 's' : {
+  case 'k' : {
     memset(info->key, 0, PKD_KEY_SIZE);
     if (optarg[0] == '0' && optarg[1] == 'x') {
       for (i=2,j=0; i < PKD_KEY_SIZE*2+2; i++,j++) {
@@ -99,14 +99,21 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
   if (info->window) {
     printf("window: %lu ", info->window);
   }
-  printf("\n");
 }
 
 static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match) {
   struct ipt_pkd_info* info = (void *)match->data;
+  int                  i;
 
   if (info->key) {
-    printf("--key %s ",info->key);
+    printf("--key 0x");
+    for (i=0; i < PKD_KEY_SIZE; i++) {
+      printf("%02x", info->key[i]);
+    }
+    printf(" ");
+  }
+  if (info->window) {
+    printf("--window %u ", info->window);
   }
 }
 
