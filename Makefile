@@ -3,6 +3,12 @@
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
 
+IPT_VERSION := $(shell /sbin/iptables -V)
+IPT_VERS = $(subst iptables v,,${IPT_VERSION})
+ifeq ($(IPT_VERS), '')
+	IPT_VERS = 1.3.8
+endif
+
 DESTDIR=/usr/local
 #INSTALL_MOD_PATH:=/tmp
 
@@ -18,7 +24,7 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
-	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"1.3.8\" -o $@ $+
+	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+

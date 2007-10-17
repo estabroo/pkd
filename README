@@ -31,12 +31,20 @@ knock.c       -- client knock program         becomes knock
 ipt_pkd.h     -- common header
 
 
-To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  The install installs libipt_pkd.so in /lib/iptables, it uses the kernel module installer so who knows where it puts it.  Sometimes you have to manually run depmod -a afterward, if you see an error like, iptables: No chain/target/match by that name, then most likely depmod -a will fix it. On my system its been putting the module in /lib/modules/<kernel>/extra.  knock doesn't get put anywhere so put it whereever. I'm guessing if packaged it'll end up in /usr/bin or /usr/local/bin.
+To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  The make install you need to run as root. 
 
-You might need to adjust the IPTABLES_VERSION from 1.3.8 if you have something different on your system.  For example on ubuntu fiesty (at least for me) it was 1.3.6.
+libipt_pkd.so get installed in /lib/iptables, so if your iptables modules are in a different directory you'll need to move it.
 
-I've done testing on Ubuntu Fiesty 2.6.20-16/1.3.6, Debian unstable 2.6.22-2-686/1.3.8, and sidux ustable 2.6.23
-If you come across any problems please let me know, or if you have patches for other kernels/iptables
+The kernel module uses the kernel installer so who knows where it puts it.  Also sometimes you have to manually run depmod -a afterward, if you see an error like, iptables: No chain/target/match by that name, then most likely depmod -a will fix it. On my system its been putting the module in /lib/modules/<kernel>/extra.  
+
+knock doesn't get put anywhere so put it whereever. I'm guessing if packaged it'll end up in /usr/bin or /usr/local/bin.
+
+You might need to set the IPT_VERS in the Makefile manually.  It tries to get it by running /sbin/iptables -V, which can fail if its in a different location on your system.  I also don't know which iptables its compatible with. I tested it with 1.3.6 and 1.3.8 and it seemed to be fine with those versions.
+
+Machines tested on:
+VMWare client 32 bit running Ubuntu Fiesty 2.6.20-16 kernel and iptables 1.3.6
+x86 32bit running Debian unstable 2.6.22-686 kernel and iptables 1.3.8
+x86_64 64bit running Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
 
 Eric 
 
