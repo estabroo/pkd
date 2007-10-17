@@ -22,6 +22,7 @@
 #include <linux/netfilter/x_tables.h>
 #include <asm/byteorder.h>
 #include <asm/semaphore.h>
+#include <linux/version.h>
 
 #include "ipt_pkd.h"
 
@@ -47,13 +48,22 @@ struct _pkd_buff {
 };
 
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
-static char  check[] = "PKD0";
+static char check[] = "PKD0";
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static int
 ipt_pkd_match(const struct sk_buff *skb,
               const struct net_device *in, const struct net_device *out,
               const struct xt_match *match, const void *matchinfo,
               int offset, unsigned int protoff, int *hotdrop)
+#else
+static bool
+ipt_pkd_match(const struct sk_buff *skb,
+              const struct net_device *in, const struct net_device *out,
+              const struct xt_match *match, const void *matchinfo,
+              int offset, unsigned int protoff, bool *hotdrop)
+#endif
+
 {
     struct iphdr*              iph;
     struct udphdr*             uh;
@@ -65,7 +75,6 @@ ipt_pkd_match(const struct sk_buff *skb,
     struct hash_desc           desc;
     int                        i;
     int                        err;
-    int                        ret = 0;
     int                        count;
     int                        tcount;
     int                        least;
@@ -161,24 +170,14 @@ ipt_pkd_match(const struct sk_buff *skb,
       return 0;
     }
 
-    ret = memcmp(result, &pdata[24], crypto_hash_digestsize(tfm));
+    err = memcmp(result, &pdata[24], crypto_hash_digestsize(tfm));
     crypto_free_hash(tfm);
     
     up(&pkd_buffers[i].sem);
-    return (!ret);
-}
-
-static int
-ipt_pkd_checkentry(const char *tablename, const void *ip,
-                   const struct xt_match *match, void *matchinfo,
-                   unsigned int hook_mask)
-{
-    struct ipt_pkd_info* info = matchinfo;
-    
-    if (info->secret[0] == '\0' || strnlen(info->secret, PKD_SECRET_SIZE) == PKD_SECRET_SIZE) {
-      return 0;
+    if (err == 0) {
+      return 1;
     }
-	return 1;
+    return 0;
 }
 
 static struct xt_match pkd_match = {
@@ -186,7 +185,6 @@ static struct xt_match pkd_match = {
 	.family		= AF_INET,
 	.match		= ipt_pkd_match,
 	.matchsize	= sizeof(struct ipt_pkd_info),
-	.checkentry	= ipt_pkd_checkentry,
 	.me		= THIS_MODULE,
 };
 
