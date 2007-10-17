@@ -1,0 +1,5 @@
+add ip as an option to the packet
+use tcp packets and well known ports for firewall bypassing
+add config file reading to knock program
+c# version of knock for windows use
+perl/python version of knock
