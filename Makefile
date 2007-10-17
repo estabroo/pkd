@@ -1,5 +1,7 @@
 #!/usr/bin/make
 
+PKD_VERSION = 0.3
+
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
 
@@ -10,15 +12,25 @@ ifeq ($(IPT_VERS), '')
 endif
 
 DESTDIR=/usr/local
-#INSTALL_MOD_PATH:=/tmp
 
 EXTRA_CFLAGS := -I.
 
+.PHONY: all
 all: knock lib module
+
+.PHONY: install
 install: install-lib install-module
 
+.PHONY: dist
+dist:
+	@mkdir pkd-${PKD_VERSION}
+	@cp -a knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
+	tar -czvf pkd-${PKD_VERSION}.tgz pkd-${PKD_VERSION}
+	@rm -rf pkd-${PKD_VERSION}
+	sha1sum pkd-${PKD_VERSION}.tgz > pkd-${PKD_VERSION}.tgz.sha1sum
+
 clean:
-	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers knock
+	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers knock *.tgz *.sha1sum
 
 knock: knock.o
 	${CC} -o $@ $+ -lssl
@@ -32,9 +44,11 @@ libipt_pkd.so: libipt_pkd.o
 .PHONY: lib
 lib: libipt_pkd.so
 
+.PHONY: install-lib
 install-lib: lib
 	install -s -m 0644 -o root -g root -t /lib/iptables libipt_pkd.so
 
+# below is the stuff for the kernel make stuff to work on
 obj-m := ipt_pkd.o
 ipt_pkd-objs := pkd.o
 
