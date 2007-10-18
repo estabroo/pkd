@@ -17,6 +17,8 @@ optparser.add_option(
     dest="configfile", 
     help="location of config file")
 
+optparser.add_option("-q", action="store_true", dest="quiet", default=False)
+
 optparser.set_usage("Usage: %prog [options] place_to_knock ...")
 optparser.epilog = "place_to_knock is the section name in the config file where the host and key are found"
     
@@ -25,7 +27,7 @@ optparser.epilog = "place_to_knock is the section name in the config file where 
 config = ConfigParser()
 read = config.read(options.configfile)
 if (len(read) == 0):
-    print "no config files found, default config file is ~/.ipt_pkd.ini\n"
+    if not options.quiet: print "no config files found, default config file is ~/.ipt_pkd.ini\n"
     exit(0)
 
 sock = socket(AF_INET, SOCK_DGRAM)
@@ -45,8 +47,8 @@ for site in (args):
         l = len(bkey)
         for i in range(0, 40-l):
             bkey += '\0'
-        
-        p = "PKD0" + pack("<II", int(time.time()), 0) + pack("<III", getrandbits(32), getrandbits(32), getrandbits(32))
+
+        p = "PKD0" + pack("<IIIII", int(time.time()), 0, getrandbits(32), getrandbits(32), getrandbits(32))
         ssum = p + bkey
         m = hashlib.sha256()
         m.update(ssum);
@@ -55,8 +57,8 @@ for site in (args):
         packet = p + d;
         sock.sendto(packet, (host, port))
 
-        print "Sent knock packet to", host
+        if not options.quiet: print "Sent knock packet to", host
     else:
-        print "Section [", site, "] doesn't exist in", options.configfile
+        if not options.quiet: print "Section [", site, "] doesn't exist in", options.configfile
 
 
