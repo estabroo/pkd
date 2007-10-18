@@ -28,8 +28,11 @@ iptables -A INPUT -p tcp --dport 22 -j DROP
 libipt_pkd.c  -- iptables user space portion, becomes libipt_pkd.so 
 pkd.c         -- iptables kernel portion,     becomes ipt_pkd.ko
 knock.c       -- client knock program         becomes knock
+knock.py      -- client knock in python
 ipt_pkd.h     -- common header
 
+knock (c version) gets the host from the command line and asks for a password
+knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
 
