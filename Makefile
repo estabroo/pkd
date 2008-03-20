@@ -1,19 +1,25 @@
 #!/usr/bin/make
 
-PKD_VERSION = 0.4
+PKD_VERSION = 0.5
 
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
 
 IPT_VERSION := $(shell /sbin/iptables -V)
-IPT_VERS = $(subst iptables v,,${IPT_VERSION})
+IPT_VERS := $(subst iptables v,,${IPT_VERSION})
 ifeq ($(IPT_VERS), '')
-	IPT_VERS = 1.3.8
+	IPT_VERS := 1.3.8
 endif
 
-DESTDIR=/usr/local
+ifeq ($(DESTDIR), '')
+	DESTDIR=/usr/local
+endif
 
-EXTRA_CFLAGS := -I.
+ifeq ($(IPT_VERS),'1.4.0')
+	EXTRA_CFLAGS = -I. -I./include
+else
+	EXTRA_CFLAGS = -I.
+endif
 
 .PHONY: all
 all: knock lib module
@@ -36,7 +42,7 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
-	${CC} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
+	${CC} ${EXTRA_CFLAGS} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+

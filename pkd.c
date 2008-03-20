@@ -86,16 +86,31 @@ ipt_pkd_match(const struct sk_buff *skb,
     unsigned long              pdiff;
     const struct ipt_pkd_info* info = matchinfo;
 
+    if (skb == NULL) {
+      printk(KERN_NOTICE "ipt_pkd: invalid skb info (NULL)\n"); 
+      return 0;
+    }
+    if (info == NULL) {
+      printk(KERN_NOTICE "ipt_pkd: invalid match info (NULL)\n"); 
+      return 0;
+    }
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
     iph = skb->nh.iph;
 #else
     iph = ip_hdr(skb);
 #endif
+    if (iph == NULL) {
+      return 0;
+    }
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
       return 0;
     }
 
     uh = skb_header_pointer(skb, protoff, sizeof(_udph), &_udph);
+    if (uh == NULL) {
+      printk(KERN_NOTICE "ipt_pkd: skb_header_pointer returned a NULL\n"); 
+      return 0;
+    }
 #ifndef __BIG_ENDIAN
     len = __swab16(uh->len);
 #else
@@ -196,20 +211,20 @@ static int __init ipt_pkd_init(void)
         for (--i; i >= 0; i--) {
           kfree(pkd_buffers[i].sbuff);
           pkd_buffers[i].sbuff = NULL;
-	  crypto_free_hash(pkd_buffers[i].tfm);
-	  pkd_buffers[i].tfm = NULL;
+          crypto_free_hash(pkd_buffers[i].tfm);
+          pkd_buffers[i].tfm = NULL;
         }
-	return -EAGAIN;
+        return -EAGAIN;
       }
       pkd_buffers[i].sbuff = kmalloc(24+PKD_KEY_SIZE, GFP_KERNEL);
       if (pkd_buffers[i].sbuff == NULL) {
-	crypto_free_hash(pkd_buffers[i].tfm);
-	pkd_buffers[i].tfm = NULL;
+        crypto_free_hash(pkd_buffers[i].tfm);
+        pkd_buffers[i].tfm = NULL;
         for (--i; i >= 0; i--) {
           kfree(pkd_buffers[i].sbuff);
           pkd_buffers[i].sbuff = NULL;
-	  crypto_free_hash(pkd_buffers[i].tfm);
-	  pkd_buffers[i].tfm = NULL;
+          crypto_free_hash(pkd_buffers[i].tfm);
+          pkd_buffers[i].tfm = NULL;
         }
         return -ENOMEM;
       }
