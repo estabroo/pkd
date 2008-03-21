@@ -30,7 +30,7 @@ install: install-lib install-module
 .PHONY: dist
 dist:
 	@mkdir pkd-${PKD_VERSION}
-	@cp -a example.ipt_pkd.ini knock.py GPLv2 DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
+	@cp -a include example.ipt_pkd.ini knock.py GPLv2 DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
 	tar -czvf pkd-${PKD_VERSION}.tgz pkd-${PKD_VERSION}
 	@rm -rf pkd-${PKD_VERSION}
 	sha1sum pkd-${PKD_VERSION}.tgz > pkd-${PKD_VERSION}.tgz.sha1sum
