@@ -28,8 +28,14 @@ static void help(void) {
          "                   defaults to 10 giving a 20 second window.\n",
          PKD_VERSION, PKD_KEY_SIZE);
 }
-  
-static void init(struct ipt_entry_match* match, unsigned int* nfcache) {
+
+
+#ifdef IPT14
+static void init(struct ipt_entry_match* match)
+#else
+static void init(struct ipt_entry_match* match, unsigned int* nfcache)
+#endif
+{
   struct ipt_pkd_info* info = (void *)(match)->data;
 
   memset(info->key, 0, sizeof(PKD_KEY_SIZE));
@@ -39,8 +45,14 @@ static void init(struct ipt_entry_match* match, unsigned int* nfcache) {
 
 #define hex(a) ((a) >= 'a' ? ((a) - 'a' + 10) : ((a) - '0'))
 
+#ifdef IPT14
+static int parse(int c, char** argv, int invert, unsigned int* flags, const void* entry,
+                 struct ipt_entry_match** match)
+#else
 static int parse(int c, char** argv, int invert, unsigned int* flags, const struct ipt_entry* entry,
-                 unsigned int* nfcache, struct ipt_entry_match** match) {
+                 unsigned int* nfcache, struct ipt_entry_match** match)
+#endif
+{
   unsigned char        h;
   int                  i,j;
   int                  ret = 0;
@@ -87,7 +99,12 @@ static void final_check(unsigned int flags)
   }
 }
 
-static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, int numeric) {
+#ifdef IPT14
+static void print(const void* ip, const struct ipt_entry_match* match, int numeric)
+#else
+static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, int numeric)
+#endif
+{
   struct ipt_pkd_info* info = (void *)match->data;
   int i;
 
@@ -104,7 +121,12 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
   }
 }
 
-static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match) {
+#ifdef IPT14
+static void save(const void* ip, const struct ipt_entry_match* match)
+#else
+static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match)
+#endif
+{
   struct ipt_pkd_info* info = (void *)match->data;
   int                  i;
 

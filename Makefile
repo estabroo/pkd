@@ -15,8 +15,8 @@ ifeq ($(DESTDIR), '')
 	DESTDIR=/usr/local
 endif
 
-ifeq ($(IPT_VERS),'1.4.0')
-	EXTRA_CFLAGS = -I. -I./include
+ifeq ($(IPT_VERS),1.4.0)
+	EXTRA_CFLAGS = -I. -I./include -I${KERNEL_DIR}/include -DIPT14=1
 else
 	EXTRA_CFLAGS = -I.
 endif
@@ -42,6 +42,7 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl
 
 libipt_pkd.o: libipt_pkd.c
+	echo ${IPT_VERS}
 	${CC} ${EXTRA_CFLAGS} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
