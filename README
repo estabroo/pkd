@@ -7,7 +7,9 @@ ipt_pkd has two options:
                   The remainder of the key is zero filled.      --key 0xaa09e4ff
 --window <time>   Time in seconds +- that the packet can be different from the computer.  Default is 10 which
                   gives a 20 second window for the packet to arrive.  If your clocks are close in time you can
-                  reduce that, say if they are synced to an ntp server.
+                  reduce that, say if they are synced to an ntp server.  *NOTE* You can also set the window to 0
+				  and skip the time check, nice for virtual machines whose clocks might be messed up.
+
 
 Some examples:
 
@@ -50,6 +52,7 @@ x86 32bit running Debian unstable 2.6.22-686 kernel and iptables 1.3.8
 x86_64 64bit running Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
 x86_64 64bit running Sidux unstable 2.6.23.12-slh64-smp-2 kernel and iptables 1.4.0
 Sparc 64bit running Debian unstable 2.6.22-2-sparc64 kernel and iptables 1.3.8
+x86 32bit running Ubuntu 8.04 server 2.6.24-16-server kernel and iptables 1.3.8
 
 Eric 
 
