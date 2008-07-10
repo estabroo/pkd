@@ -25,7 +25,8 @@ static void help(void) {
          "    --key key      up to %d byte shared key. use 0x to indicate the key in hex,\n"
          "                   for example --key 0xab03be805172 or --key test.\n"
          "    --window time  window in seconds +- in which the packet can arrive.\n"
-         "                   defaults to 10 giving a 20 second window.\n",
+         "                   defaults to 10 giving a 20 second window.\n"
+		 "                   use 0 to skip time check.\n",
          PKD_VERSION, PKD_KEY_SIZE);
 }
 
@@ -80,7 +81,7 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
   }; break;
   case 'w' : {
     info->window = atol(optarg);
-    if (info->window != 0) {
+    if (info->window >= 0) {
       ret = 1;
     }
     *flags = 1;
