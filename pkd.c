@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007 Eric Estabrooks <eric@urbanrage.com>
+ * Copyright (c) 2007,2008 Eric Estabrooks <eric@urbanrage.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,7 +28,7 @@
 #include "ipt_pkd.h"
 
 MODULE_AUTHOR("Eric Estabrooks <eric@urbanrage.com>");
-MODULE_DESCRIPTION("IP tables port knock detection");
+MODULE_DESCRIPTION("IP tables port knock detection using spa");
 MODULE_LICENSE("GPL");
 
 #if 0
@@ -87,11 +87,11 @@ ipt_pkd_match(const struct sk_buff *skb,
     const struct ipt_pkd_info* info = matchinfo;
 
     if (skb == NULL) {
-      printk(KERN_NOTICE "ipt_pkd: invalid skb info (NULL)\n"); 
+      printk(KERN_NOTICE "ipt_pkd: invalid skb info (NULL)\n");
       return 0;
     }
     if (info == NULL) {
-      printk(KERN_NOTICE "ipt_pkd: invalid match info (NULL)\n"); 
+      printk(KERN_NOTICE "ipt_pkd: invalid match info (NULL)\n");
       return 0;
     }
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
@@ -108,7 +108,7 @@ ipt_pkd_match(const struct sk_buff *skb,
 
     uh = skb_header_pointer(skb, protoff, sizeof(_udph), &_udph);
     if (uh == NULL) {
-      printk(KERN_NOTICE "ipt_pkd: skb_header_pointer returned a NULL\n"); 
+      printk(KERN_NOTICE "ipt_pkd: skb_header_pointer returned a NULL\n");
       return 0;
     }
 #ifndef __BIG_ENDIAN
@@ -120,30 +120,32 @@ ipt_pkd_match(const struct sk_buff *skb,
       return 0;
     }
     pdata = (void *)uh + 8;
-    
+
     for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock */
       if (pdata[i] != check[i]) {
         return 0;
       }
     }
 
-    /* check time interval */
-    do_gettimeofday(&current_time);
-    packet_time = 0;
-    memcpy(&tpacket_time, &pdata[4], sizeof(time_t));
+    /* check time interval, skip check if user set window to 0 */
+    if (info->window > 0) {
+      do_gettimeofday(&current_time);
+      packet_time = 0;
+      memcpy(&tpacket_time, &pdata[4], sizeof(time_t));
 #ifdef __BIG_ENDIAN
-    if (sizeof(time_t) == 4) {
-      packet_time =  __swab32((__le32)tpacket_time);
-    } else {
-      packet_time = __swab64((__le64)tpacket_time);
-    }
+      if (sizeof(time_t) == 4) {
+        packet_time =  __swab32((__le32)tpacket_time);
+      } else {
+        packet_time = __swab64((__le64)tpacket_time);
+      }
 #else
-    packet_time = tpacket_time;
+      packet_time = tpacket_time;
 #endif
-    pdiff = abs(current_time.tv_sec - packet_time);
-    if (pdiff > info->window) { /* packet outside of time window */
-      printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff); 
-      return 0;
+      pdiff = abs(current_time.tv_sec - packet_time);
+      if (pdiff > info->window) { /* packet outside of time window */
+        printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff);
+        return 0;
+      }
     }
 
     /* acquire a buffer to use, if none available wait */
@@ -166,7 +168,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     memset(&desc, 0, sizeof(desc)); /* probably don't need to do this */
     desc.tfm = pkd_buffers[i].tfm;
     desc.flags = 0;
-    
+
     memcpy(pkd_buffers[i].sbuff, pdata, 24);
     memcpy(pkd_buffers[i].sbuff+24, info->key, PKD_KEY_SIZE);
 
@@ -200,7 +202,7 @@ static int __init ipt_pkd_init(void)
 {
     int err;
     int i;
-  
+
     _pkd_next_sem = 0;
     memset(pkd_buffers, 0, sizeof(pkd_buffers));
     for (i=0; i < _PKD_BUFFERS; i++) {
@@ -236,7 +238,7 @@ static int __init ipt_pkd_init(void)
 static void __exit ipt_pkd_exit(void)
 {
     int i;
-    
+
     for (i=0; i < _PKD_BUFFERS; i++) {
       if (pkd_buffers[i].sbuff != NULL) {
         kfree(pkd_buffers[i].sbuff);
