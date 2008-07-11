@@ -1,4 +1,4 @@
-ipt_pkd is a port knock detector which when used in conjuction with ipt_recent gives you a decent port knocking system thats based in iptables.
+ipt_pkd is a port knock detector with spa (single packet authorization) which when used in conjuction with ipt_recent gives you a decent port knocking system thats based in iptables.
 
 The knock packet is a sha256 of a timestamp, some random bytes, a small header, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
 
@@ -9,6 +9,7 @@ ipt_pkd has two options:
                   gives a 20 second window for the packet to arrive.  If your clocks are close in time you can
                   reduce that, say if they are synced to an ntp server.  *NOTE* You can also set the window to 0
 				  and skip the time check, nice for virtual machines whose clocks might be messed up.
+				  Be aware that turning off the time check means packets can replayed (at the moment) at will.
 
 
 Some examples:
@@ -38,13 +39,13 @@ knock.py (python version) reads its information out of an ini file (default ~/.i
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
 
-libipt_pkd.so get installed in /lib/iptables, so if your iptables modules are in a different directory you'll need to move it.
+The Makefile tries to make a best guess as to where to put the userspace iptables part (libipt_pkd.so), typically its found in /lib/iptables or some libexec directory like /usr/local/libexec/xtables/, you might need to move it if it puts it in the wrong directory.
 
 The kernel module uses the kernel installer so who knows where it puts it.  Also sometimes you have to manually run depmod -a afterward, if you see an error like, iptables: No chain/target/match by that name, then most likely depmod -a will fix it. On my system its been putting the module in /lib/modules/<kernel>/extra.  
 
-knock doesn't get put anywhere so put it whereever. I'm guessing if packaged it'll end up in /usr/bin or /usr/local/bin.
+knock and knock.py don't get put anywhere, so put them whereever you'd like (I have them in ~/bin).
 
-You might need to set the IPT_VERS in the Makefile manually.  It tries to get it by running /sbin/iptables -V, which can fail if its in a different location on your system.  I also don't know which iptables its compatible with. I tested it with 1.3.6, 1.3.8, and 1.4.0 it seemed to be fine with those versions.
+You might need to set the IPT_VERS in the Makefile manually.  It tries to get it by running iptables -V. I tested it with 1.3.6, 1.3.8, 1.4.0 and 1.4.1.1 it seemed to be fine with those versions. 1.4.1 should work but since 1.4.1.1 fixes some bugs in it I'd just use 1.4.1.1.
 
 Machines tested on:
 VMWare client 32 bit running Ubuntu Fiesty 2.6.20-16 kernel and iptables 1.3.6
@@ -53,10 +54,11 @@ x86_64 64bit running Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
 x86_64 64bit running Sidux unstable 2.6.23.12-slh64-smp-2 kernel and iptables 1.4.0
 Sparc 64bit running Debian unstable 2.6.22-2-sparc64 kernel and iptables 1.3.8
 x86 32bit running Ubuntu 8.04 server 2.6.24-16-server kernel and iptables 1.3.8
+x86 32bit running Ubuntu 8.04 desktop 2.6.24-17-generic kernel and iptables 1.4.1.1
 
 Eric 
 
 eric@urbanrage.com
 
 
-The release includes headers from iptables-1.4.0.  I did this because iptables-dev for 1.4.0 on debian systems at least no longer includes the headers required to build this extension.
+The release includes headers from iptables-1.4.0 & 1.4.1.1.  I did this because iptables-dev for >= 1.4.0 on debian systems at least no longer includes the headers required to build this extension.

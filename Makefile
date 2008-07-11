@@ -1,24 +1,37 @@
 #!/usr/bin/make
 
-PKD_VERSION = 0.6
+PKD_VERSION = 0.8
 
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
 
-IPT_VERSION := $(shell /sbin/iptables -V)
+IPTABLES := $(shell which iptables)
+IPT_VERSION := $(shell $(IPTABLES) -V)
 IPT_VERS := $(subst iptables v,,${IPT_VERSION})
+IPT_SVERS := $(shell echo $(IPT_VERS) | cut -d. -f1,2)
 ifeq ($(IPT_VERS), '')
 	IPT_VERS := 1.3.8
+	IPT_SVERS := 1.3
 endif
+IPT_VERS_STRIP := $(strip $(IPT_SVERS))
 
 ifeq ($(DESTDIR), '')
 	DESTDIR=/usr/local
 endif
 
-ifeq ($(IPT_VERS),1.4.0)
-	EXTRA_CFLAGS = -I. -I./include -I${KERNEL_DIR}/include -DIPT14=1
-else
+ifeq ($(IPT_VERS_STRIP),1.3)
 	EXTRA_CFLAGS = -I.
+else
+	EXTRA_CFLAGS = -I. -I./include-$(IPT_VERS) -I${KERNEL_DIR}/include -DIPT14=1
+endif
+
+LIBDIR_T := $(shell strings $(IPTABLES) | grep -A 1 TABLES | grep ^/ )
+LIBDIR := $(strip $(LIBDIR_T))
+
+XTABLES_T := $(shell strings $(IPTABLES) | grep XTABLES)
+XTABLES := $(strip $(XTABLES_T))
+ifeq ($(XTABLES), XTABLES_LIBDIR)
+	EXTRA_CFLAGS += -DXTABLES=1
 endif
 
 .PHONY: all
@@ -30,7 +43,7 @@ install: install-lib install-module
 .PHONY: dist
 dist:
 	@mkdir pkd-${PKD_VERSION}
-	@cp -a include example.ipt_pkd.ini knock.py GPLv2 DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
+	@cp -a include* example.ipt_pkd.ini knock.py GPLv2 DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
 	tar -czvf pkd-${PKD_VERSION}.tgz pkd-${PKD_VERSION}
 	@rm -rf pkd-${PKD_VERSION}
 	sha1sum pkd-${PKD_VERSION}.tgz > pkd-${PKD_VERSION}.tgz.sha1sum
@@ -53,7 +66,7 @@ lib: libipt_pkd.so
 
 .PHONY: install-lib
 install-lib: lib
-	install -s -m 0644 -o root -g root -t /lib/iptables libipt_pkd.so
+	install -s -m 0644 -o root -g root -t $(LIBDIR) libipt_pkd.so
 
 # below is the stuff for the kernel make stuff to work on
 obj-m := ipt_pkd.o

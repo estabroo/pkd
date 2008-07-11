@@ -143,6 +143,22 @@ static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match)
   }
 }
 
+#ifdef XTABLES
+static struct xtables_match pkd = { 
+    .name          = "pkd",
+    .version       = XTABLES_VERSION,
+    .family        = PF_INET,
+    .size          = XT_ALIGN(sizeof(struct ipt_pkd_info)),
+    .userspacesize = XT_ALIGN(sizeof(struct ipt_pkd_info)),
+    .help          = help,
+    .init          = init,
+    .parse         = parse,
+    .final_check   = final_check,
+    .print         = print,
+    .save          = save,
+    .extra_opts    = opts
+};
+#else
 static struct iptables_match pkd = { 
     .name          = "pkd",
     .version       = IPTABLES_VERSION,
@@ -156,7 +172,12 @@ static struct iptables_match pkd = {
     .save          = save,
     .extra_opts    = opts
 };
+#endif
 
 void _init(void) {
+#ifdef XTABLES
+    xtables_register_match(&pkd);
+#else
 	register_match(&pkd);
+#endif
 }
