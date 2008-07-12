@@ -32,7 +32,7 @@
 #endif
 
 MODULE_AUTHOR("Eric Estabrooks <eric@urbanrage.com>");
-MODULE_DESCRIPTION("IP tables port knock detection using spa");
+MODULE_DESCRIPTION("iptables port knock detection using spa");
 MODULE_VERSION(PKD_VERSION);
 MODULE_LICENSE("GPL");
 
