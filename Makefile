@@ -20,9 +20,9 @@ ifeq ($(DESTDIR), '')
 endif
 
 ifeq ($(IPT_VERS_STRIP),1.3)
-	EXTRA_CFLAGS = -I.
+	IPT_CFLAGS = -I.
 else
-	EXTRA_CFLAGS = -I. -I./include-$(IPT_VERS) -I${KERNEL_DIR}/include -DIPT14=1
+	IPT_CFLAGS = -I. -I./include-$(IPT_VERS) -I${KERNEL_DIR}/include -DIPT14=1
 endif
 
 LIBDIR_T := $(shell strings $(IPTABLES) | grep -A 1 TABLES | grep ^/ )
@@ -31,7 +31,7 @@ LIBDIR := $(strip $(LIBDIR_T))
 XTABLES_T := $(shell strings $(IPTABLES) | grep XTABLES)
 XTABLES := $(strip $(XTABLES_T))
 ifeq ($(XTABLES), XTABLES_LIBDIR)
-	EXTRA_CFLAGS += -DXTABLES=1
+	IPT_CFLAGS += -DXTABLES=1
 endif
 
 .PHONY: all
@@ -39,6 +39,7 @@ all: knock lib module
 
 .PHONY: install
 install: install-lib install-module
+	depmod -a
 
 .PHONY: dist
 dist:
@@ -56,7 +57,7 @@ knock: knock.o
 
 libipt_pkd.o: libipt_pkd.c
 	echo ${IPT_VERS}
-	${CC} ${EXTRA_CFLAGS} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
+	${CC} ${IPT_CFLAGS} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+
@@ -72,6 +73,7 @@ install-lib: lib
 obj-m := ipt_pkd.o
 ipt_pkd-objs := pkd.o
 
+EXTRA_CFLAGS = -DPKD_VERSION=\"${PKD_VERSION}\"
 module: pkd.c
 	$(MAKE) modules -C $(KERNEL_DIR) M=$(CURDIR) KERNELRELEASE=$(KVERSION)
 

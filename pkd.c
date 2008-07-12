@@ -27,8 +27,13 @@
 
 #include "ipt_pkd.h"
 
+#ifndef PKD_VERSION
+#define PKD_VERSION "unknown"
+#endif
+
 MODULE_AUTHOR("Eric Estabrooks <eric@urbanrage.com>");
 MODULE_DESCRIPTION("IP tables port knock detection using spa");
+MODULE_VERSION(PKD_VERSION);
 MODULE_LICENSE("GPL");
 
 #if 0
