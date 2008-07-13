@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007 Eric Estabrooks <eric@urbanrage.com>
+ * Copyright (c) 2007,2008 Eric Estabrooks <eric@urbanrage.com>
  *
  * Shared library add-on to iptables to add pkd matching support.
  * Use in conjuction with recent to provide iptable port knocking.
@@ -17,6 +17,7 @@
 static struct option opts[] = {
 	{ .name = "key",      .has_arg = 1, .flag = 0, .val = 'k' },
     { .name = "window",   .has_arg = 1, .flag = 0, .val = 'w' },
+    { .name = "tag",      .has_arg = 1, .flag = 0, .val = 't' },
 	{ .name = 0,          .has_arg = 0, .flag = 0, .val = 0   }
 };
 
@@ -26,7 +27,12 @@ static void help(void) {
          "                   for example --key 0xab03be805172 or --key test.\n"
          "    --window time  window in seconds +- in which the packet can arrive.\n"
          "                   defaults to 10 giving a 20 second window.\n"
-		 "                   use 0 to skip time check.\n",
+		 "                   use 0 to skip time check.\n"
+         "   --tag tag       4 character tag, use different tags for different keys to\n"
+         "                   speed up processing, default tag is PKD0.  The tag is\n"
+         "                   checked before processing the packet allowing for early\n"
+         "                   elimination when the knock packet is for a different key.\n"
+         "                   use 0x to indicate the tag in hex (like --key).\n",
          PKD_VERSION, PKD_KEY_SIZE);
 }
 
@@ -40,8 +46,9 @@ static void init(struct ipt_entry_match* match, unsigned int* nfcache)
   struct ipt_pkd_info* info = (void *)(match)->data;
 
   memset(info->key, 0, sizeof(PKD_KEY_SIZE));
-  strncpy(info->key,"AbC123kajsdf987nacva", PKD_KEY_SIZE);
+  strncpy(info->key, "AbC123kajsdf987nacva", PKD_KEY_SIZE);
   info->window = 10;
+  strncpy(info->tag, "PKD0", PKD_TAG_SIZE); /* it's okay to not be null terminated */
 }
 
 #define hex(a) ((a) >= 'a' ? ((a) - 'a' + 10) : ((a) - '0'))
@@ -74,9 +81,9 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
         info->key[j] = h;
       }
     } else {
-      strncpy(info->key, optarg, PKD_KEY_SIZE); /* its okay if the key isn't null terminated */
+      strncpy(info->key, optarg, PKD_KEY_SIZE); /* it's okay if the key isn't null terminated */
     }
-    *flags = 1;
+    *flags |= 1;
     ret = 1;
   }; break;
   case 'w' : {
@@ -84,7 +91,26 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
     if (info->window >= 0) {
       ret = 1;
     }
-    *flags = 1;
+    *flags |= 2;
+  }; break;
+  case 't' : {
+    memset(info->tag, 0, PKD_TAG_SIZE);
+    if (optarg[0] == '0' && optarg[1] == 'x') {
+      for (i=2,j=0; i < PKD_TAG_SIZE*2+2; i++,j++) {
+        if (!isxdigit(optarg[i])) break;
+        h = hex(tolower(optarg[i])) << 4;
+        if (!isxdigit(optarg[++i])) { /* no lower nibble, make it a 0 */
+          info->tag[j++] = h;
+          break;
+        }
+        h |= hex(tolower(optarg[i]));
+        info->tag[j] = h;
+      }
+    } else {
+      strncpy(info->tag, optarg, PKD_TAG_SIZE); /* it's okay if the tag isn't null terminated */
+    }
+    *flags |= 4;
+    ret = 1;
   }; break;
   default: ret = 0;
   };
@@ -94,8 +120,8 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
 
 static void final_check(unsigned int flags)
 {
-
-  if (!flags) {
+  //printf("flags = 0x%08x\n", flags);
+  if ((flags & 1) == 0) {
     exit_error(PARAMETER_PROBLEM, "pkd: you must specify a key `--key key'");
   }
 }
@@ -110,15 +136,24 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
   int i;
 
   printf("pkd: ");
-  if(info->key) {
+  if (info != NULL) {
     printf("key: 0x");
     for (i=0; i < PKD_KEY_SIZE; i++) {
       printf("%02x", info->key[i]);
     }
     printf(" ");
-  }
-  if (info->window) {
-    printf("window: %lu ", info->window);
+  
+    if (info->window >= 0) {
+      printf("window: %lu ", info->window);
+    } else {
+      printf("window: 10 ");
+    }
+
+    printf("tag: 0x");
+    for (i=0; i < PKD_TAG_SIZE; i++) {
+      printf("%02x", info->tag[i]);
+    }
+    printf(" ");
   }
 }
 
@@ -131,15 +166,23 @@ static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match)
   struct ipt_pkd_info* info = (void *)match->data;
   int                  i;
 
-  if (info->key) {
+  if (info != NULL) {
     printf("--key 0x");
     for (i=0; i < PKD_KEY_SIZE; i++) {
       printf("%02x", info->key[i]);
     }
     printf(" ");
-  }
-  if (info->window) {
-    printf("--window %u ", info->window);
+  
+    if (info->window >= 0) {
+      printf("--window %u ", info->window);
+    } else {
+      printf("--window 10 ");
+    }
+    printf("--tag 0x");
+    for (i=0; i < PKD_TAG_SIZE; i++) {
+      printf("%02x", info->tag[i]);
+    }
+    printf(" ");
   }
 }
 

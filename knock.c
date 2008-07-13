@@ -77,7 +77,7 @@ int setup_udp_socket(char* host, int port) {
 }
 
 void usage(char* argv[]) {
-  fprintf(stderr, "usage: %s host_to_knock [port]\n", argv[0]);
+  fprintf(stderr, "usage: %s host_to_knock [tag [port]]\n", argv[0]);
   exit(0);
 }
 
@@ -94,13 +94,14 @@ int main (int argc, char* argv[]) {
    char*              ptr;
    char               tkey[PKD_KEY_SIZE*2+3];
    char               key[PKD_KEY_SIZE];
+   char               tag[PKD_TAG_SIZE];
    unsigned char      h;
    unsigned char      packet[64];
    unsigned char      randbits[12];
    SHA256_CTX         sha_c;
    unsigned char      md[SHA256_DIGEST_LENGTH];
 
-   if ((argc < 2) || (argc > 3)) {
+   if ((argc < 2) || (argc > 4)) {
      usage(argv);
    }
    
@@ -161,8 +162,29 @@ int main (int argc, char* argv[]) {
      }
    }
 
-   if (argc == 3) {
-     port = atoi(argv[2]);
+   if (argc < 3) {
+     strncpy(tag, "PKD0", 4);
+   } else {
+     memset(tag, 0, sizeof(tag));
+     ptr = argv[2];
+     if (ptr[0] == '0' && ptr[1] == 'x') { /* entered in as hex, convert it */
+       for(i=2,j=0; j < PKD_TAG_SIZE; i++,j++) {
+         if (!isxdigit(ptr[i])) break;
+         h = hex(tolower(ptr[i])) << 4;
+         if (!isxdigit(ptr[++i])) {
+           key[j++] = h;
+           break;
+         }
+         h |= hex(tolower(ptr[i]));
+         key[j] = h;
+       }
+     } else {
+       strncpy(tag, ptr, PKD_TAG_SIZE);
+     }
+   }
+
+   if (argc == 4) {
+     port = atoi(argv[3]);
    } else {
      port = randbits[3] << 8 | randbits[7];
    }
@@ -180,7 +202,7 @@ int main (int argc, char* argv[]) {
    }
 
    memset(packet, 0, sizeof(packet));
-   strcpy(packet, "PKD0");
+   strncpy(packet, tag, 4);
    err = gettimeofday(&current_time, NULL);
    ptr = (void*)&current_time.tv_sec;
 

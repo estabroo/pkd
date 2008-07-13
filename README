@@ -3,26 +3,31 @@ ipt_pkd is a port knock detector with spa (single packet authorization) which wh
 The knock packet is a sha256 of a timestamp, some random bytes, a small header, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
 
 ipt_pkd has two options:
---key <key>       set the shared key its up to 40 bytes long and can be entered in as hex by starting it with 0x.
+--key <key>       Sets the shared key, it's up to 40 bytes long and can be entered in as hex by starting it with 0x.
                   The remainder of the key is zero filled.      --key 0xaa09e4ff
+
 --window <time>   Time in seconds +- that the packet can be different from the computer.  Default is 10 which
                   gives a 20 second window for the packet to arrive.  If your clocks are close in time you can
                   reduce that, say if they are synced to an ntp server.  *NOTE* You can also set the window to 0
 				  and skip the time check, nice for virtual machines whose clocks might be messed up.
 				  Be aware that turning off the time check means packets can replayed (at the moment) at will.
 
+--tag <tag>       Sets the tag for this knock key.  Use different tags for different keys on the same machine.
+                  This speeds up processing as the knock doesn't have to be rehashed for every key check.
+                  Default tag is PKD0, the tag is up to 4 bytes and can be entered as hex by starting it with 0x.
+                  The remainder of the tag is zero filled.
 
 Some examples:
 
 Protecting ssh (port 22).
 
-iptables -A INPUT -p udp -m pkd --key test -m recent --set --name PKD
+iptables -A INPUT -p udp -m pkd --key test --tag SSHK -m recent --set --name PKD
 iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --rcheck --name PKD --seconds 60 --hitcount 1 -j ACCEPT
 iptables -A INPUT -p tcp --dport 22 -m state --state NEW -j REJECT --reject-with tcp-reset
 
 These rules will drop any new ssh connection attempts unless a valid knock packet was seen for the incoming client ip in the last 60 seconds.  You can use hitcount to control how many times you have to knock, though in the above rules you'd also need to change the --set to --update otherwise the hitcount wouldn't go over 1.  You could also use it to control how long a session could be by adding a drop on all packets to --dport 22 and setting --seconds to be how long you wanted a session to last.
 
-iptables -A INPUT -p udp -m pkd --key 0xAA0693aB -m recent --set --name PKD
+iptables -A INPUT -p udp -m pkd --key 0xAA0693aB --tag 0x00010203 -m recent --set --name PKD
 iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --rcheck --name PKD --seconds 60 --hitcount 1 -j ACCEPT
 iptables -A INPUT -p tcp --dport 22 -m state --state ESTABLISHED,RELATED -m recent --name PKD --rcheck --seconds 600 -j ACCEPT
 iptables -A INPUT -p tcp --dport 22 -j REJECT --reject-with tcp-reset
@@ -31,10 +36,10 @@ iptables -A INPUT -p tcp --dport 22 -j REJECT --reject-with tcp-reset
 libipt_pkd.c  -- iptables user space portion, becomes libipt_pkd.so 
 pkd.c         -- iptables kernel portion,     becomes ipt_pkd.ko
 knock.c       -- client knock program         becomes knock
-knock.py      -- client knock in python
+knock.py      -- client knock in python       stays   knock.py
 ipt_pkd.h     -- common header
 
-knock (c version) gets the host from the command line and asks for a password
+knock (c version) gets the host (and optional tag) from the command line and then asks for a password
 knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 

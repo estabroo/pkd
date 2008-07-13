@@ -55,7 +55,7 @@ struct _pkd_buff {
 };
 
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
-static char check[] = "PKD0";
+//static char check[] = "PKD0"; // now handled by --tag option
 static unsigned char _pkd_next_sem = 0;
 static DEFINE_SPINLOCK(_pkd_lock);
 
@@ -91,6 +91,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     unsigned long              pdiff;
     const struct ipt_pkd_info* info = matchinfo;
 
+    /* do early kickout/fatal checks */
     if (skb == NULL) {
       printk(KERN_NOTICE "ipt_pkd: invalid skb info (NULL)\n");
       return 0;
@@ -126,8 +127,8 @@ ipt_pkd_match(const struct sk_buff *skb,
     }
     pdata = (void *)uh + 8;
 
-    for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock */
-      if (pdata[i] != check[i]) {
+    for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock or for a different knock */
+      if (pdata[i] != info->tag[i]) {
         return 0;
       }
     }
@@ -190,6 +191,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     up(&pkd_buffers[i].sem);
 
     if (err == 0) {
+      /* good knock, put on list to reduce replay? */
       return 1;
     }
     return 0;

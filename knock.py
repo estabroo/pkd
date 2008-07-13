@@ -1,4 +1,11 @@
 #!/usr/bin/python2.5
+#
+# Copyright (c) 2007,2008 Eric Estabrooks <eric@urbanrage.com>
+#
+# Implements basic client knock program in python
+# host, key, tag data is stored in an ini style file
+# by default ~/.ipt_pkd.ini
+#
 
 import os
 import time
@@ -38,6 +45,10 @@ for site in (args):
         host = config.get(site, "host")
         port = randint(1024, 50000)
         key = config.get(site, "key")
+        try:
+            tag = config.get(site, "tag");
+        except:
+            tag = "PKD0";
 
         if (key.startswith("0x")):
             bkey = a2b_hex(key[2:])
@@ -48,7 +59,16 @@ for site in (args):
         for i in range(0, 40-l):
             bkey += '\0'
 
-        p = "PKD0" + pack("<IIIII", int(time.time()), 0, getrandbits(32), getrandbits(32), getrandbits(32))
+        if (tag.startswith("0x")):
+            btag = a2b_hex(tag[2:])
+        else:
+            btag = tag
+
+        l = len(btag)
+        for i in range(0, 4-l):
+            btag += '\0'
+
+        p = btag + pack("<IIIII", int(time.time()), 0, getrandbits(32), getrandbits(32), getrandbits(32))
         ssum = p + bkey
         m = hashlib.sha256()
         m.update(ssum);
