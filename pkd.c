@@ -156,22 +156,22 @@ ipt_pkd_match(const struct sk_buff *skb,
     }
 
     /* check time interval, skip check if user set window to 0 */
-    if (info->window > 0) {
-      do_gettimeofday(&current_time);
+    do_gettimeofday(&current_time);
+    if (info->window > 0) {      
       packet_time = 0;
       memcpy(&tpacket_time, &pdata[4], sizeof(time_t));
 #ifdef __BIG_ENDIAN
-      if (sizeof(time_t) == 4) {
-        packet_time =  __swab32((__le32)tpacket_time);
-      } else {
+      if (sizeof(time_t) == 8) {
         packet_time = __swab64((__le64)tpacket_time);
+      } else {
+        packet_time =  __swab32((__le32)tpacket_time);
       }
 #else
       packet_time = tpacket_time;
 #endif
       pdiff = abs(current_time.tv_sec - packet_time);
       if (pdiff > info->window) { /* packet outside of time window */
-        printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff);
+        /*printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff);*/
         return 0;
       }
     }
@@ -220,6 +220,11 @@ ipt_pkd_match(const struct sk_buff *skb,
       for (i=0; i < _PKD_PACKETS; i++) {
         tleast = pkd_packets[i].replays;
         if (tleast >= 1) {
+          tpacket_time = (current_time.tv_sec - pkd_packets[i].last_seen)/tleast;
+          if (tpacket_time > packet_time) {
+            packet_time = tpacket_time;
+            j = i;
+          }
           err = memcmp(dport, pkd_packets[i].ports, 4);
           if (err != 0) { /* not a match, skip the rest of the check */
             continue;
@@ -234,13 +239,8 @@ ipt_pkd_match(const struct sk_buff *skb,
             pkd_packets[i].replays = tleast;
             pkd_packets[i].last_seen = current_time.tv_sec;
             spin_unlock(&_pkd_pkt_lock);
-            printk(KERN_WARNING "ipt_pkd: possible replay attack, packet repeated [%u]\n", tleast);
+            /*printk(KERN_WARNING "ipt_pkd: possible replay attack, packet repeated [%u]\n", tleast);*/
             return 0;
-          }
-          tpacket_time = (current_time.tv_sec - pkd_packets[i].last_seen)/tleast;
-          if (tpacket_time > packet_time) {
-            packet_time = tpacket_time;
-            j = i;
           }
         }
       }
@@ -273,18 +273,21 @@ static int proc_pkd_read(char* page, char** start, off_t off,
                          int count, int *eof, void *data) {
   int len;
   int i,j;
+  unsigned short port;
   char buffer[4096];
 
+  /* number of bytes to return with each read */
   spin_lock(&_pkd_pkt_lock);
   len = snprintf(buffer, sizeof(buffer), "Replayed packets: %lu\n", _pkd_replay_count);
   for (j=0; j < _PKD_PACKETS; j++) {
     if (pkd_packets[j].replays > 0) {
-      i = snprintf(buffer+len, sizeof(buffer)-len, "\t%d seen %d, last seen %lu\n", j, pkd_packets[j].replays,
+      port = (pkd_packets[j].ports[0] << 8) | pkd_packets[j].ports[1];
+      i = snprintf(buffer+len, sizeof(buffer)-len, "  port %5d seen %d, last %lu\n", port, pkd_packets[j].replays,
                    pkd_packets[j].last_seen);
       len += i;
       if (len >= sizeof(buffer)) {
         len = sizeof(buffer);
-        page[sizeof(buffer)-1] = '\0';
+        buffer[sizeof(buffer)-1] = '\0';
         break;
       }
     }
@@ -293,15 +296,18 @@ static int proc_pkd_read(char* page, char** start, off_t off,
   if (off >= len) {
     *eof = 1;
     len = 0;
+    *start = NULL;
   } else {
-    i = off+count;
-    if (i > len) {
+    i = count;
+    if ((i+off) > len) {
       i = len - off;
+      *eof = 1;
     }
     memcpy(page, buffer+off, i);
     len = i;
-    *eof = 0;
+    *start = page;
   }
+
   return len;
 }
 
