@@ -37,13 +37,13 @@ if (len(read) == 0):
     if not options.quiet: print "no config files found, default config file is ~/.ipt_pkd.ini\n"
     exit(0)
 
-sock = socket(AF_INET, SOCK_DGRAM)
-sock.bind(('', 0))
 
 for site in (args):
     if (config.has_section(site)):
         host = config.get(site, "host")
         port = randint(1024, 50000)
+        sock = socket(AF_INET, SOCK_DGRAM)
+        sock.bind(('', port))
         key = config.get(site, "key")
         try:
             tag = config.get(site, "tag");
@@ -67,9 +67,10 @@ for site in (args):
         l = len(btag)
         for i in range(0, 4-l):
             btag += '\0'
-
+        
+        bport = pack("<BBBB", ((port & 0xff00) >> 8), port & 0xff, (port & 0xff00) >> 8, port & 0xff)
         p = btag + pack("<IIIII", int(time.time()), 0, getrandbits(32), getrandbits(32), getrandbits(32))
-        ssum = p + bkey
+        ssum = bport + p + bkey
         m = hashlib.sha256()
         m.update(ssum);
         d = m.digest()

@@ -32,12 +32,11 @@
 
 #include "ipt_pkd.h"
 
-int setup_udp_socket(char* host, int port) {
+int setup_udp_socket(char* host, int port, char address[20]) {
   int                sfd;
   int                option_on = 1;
   int                error;
   char*              taddress;
-  char               address[20];
   struct sockaddr_in saddr;
   struct hostent*    h_ent;
   
@@ -46,9 +45,9 @@ int setup_udp_socket(char* host, int port) {
     fprintf(stderr, "knock (ipt_pkd) currently only supports ipv4\n");
     exit(0);
   }
-  memset(address, 0, sizeof(address));
+  memset(address, 0, 20);
   taddress = inet_ntoa(*((struct in_addr*)h_ent->h_addr_list[0]));
-  strncpy(address, taddress, sizeof(address)-1);
+  strncpy(address, taddress, 19);
 
   fprintf(stderr, "address = [%s], port[%d]\n", address, port);
   sfd = socket(PF_INET, SOCK_DGRAM, 0);
@@ -60,15 +59,15 @@ int setup_udp_socket(char* host, int port) {
   setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (char *)&option_on,
              sizeof(option_on));
   
-  /* set up sock_addr structure */
+  /* set up source sock_addr structure */
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_family = AF_INET;
-  saddr.sin_addr.s_addr = inet_addr(address);
+  saddr.sin_addr.s_addr = INADDR_ANY;
   saddr.sin_port = htons(port);
   
-  error = connect(sfd, (struct sockaddr*)&saddr, sizeof(saddr));
+  error = bind(sfd, (struct sockaddr*)&saddr, sizeof(saddr));
   if (error < 0) {
-    perror("knock couldn't connect socket to address");
+    perror("knock couldn't bind socket to address");
     close(sfd);
     exit(0);
   }
@@ -86,7 +85,8 @@ void usage(char* argv[]) {
 int main (int argc, char* argv[]) {
    int                sfd;
    int                fd;
-   int                port;
+   unsigned short     port;
+   unsigned char      hport[4];
    int                err;
    int                i,j;
    struct timeval     current_time;
@@ -96,10 +96,12 @@ int main (int argc, char* argv[]) {
    char               key[PKD_KEY_SIZE];
    char               tag[PKD_TAG_SIZE];
    unsigned char      h;
-   unsigned char      packet[64];
+   unsigned char      packet[68];
    unsigned char      randbits[12];
    SHA256_CTX         sha_c;
    unsigned char      md[SHA256_DIGEST_LENGTH];
+   char               address[20];
+   struct sockaddr_in saddr;
 
    if ((argc < 2) || (argc > 4)) {
      usage(argv);
@@ -190,9 +192,11 @@ int main (int argc, char* argv[]) {
    }
    if (port < 1024) {
      port += 1024;
+   } else if (port > 50000) {
+     port = 50000;
    }
-
-   sfd = setup_udp_socket(argv[1], port);
+   hport[0] = hport[2] = (port >> 8) & 0xff;
+   hport[1] = hport[3] = port & 0xff;
 
    /* get ready to make the packet */
    err = SHA256_Init(&sha_c);
@@ -202,32 +206,33 @@ int main (int argc, char* argv[]) {
    }
 
    memset(packet, 0, sizeof(packet));
-   strncpy(packet, tag, 4);
+   memcpy(packet, hport, 4);
+   memcpy(packet+4, tag, 4);
    err = gettimeofday(&current_time, NULL);
    ptr = (void*)&current_time.tv_sec;
 
    for (i=0; i < sizeof(time_t); i++) {
 #if __BYTE_ORDER == __BIG_ENDIAN
-     packet[4+i] = ptr[sizeof(time_t) - i -1];
+     packet[8+i] = ptr[sizeof(time_t) - i -1];
 #else
-     packet[4+i] = ptr[i];
+     packet[8+i] = ptr[i];
 #endif
    }
 
    /* add some pseudo randomness */
    for (i=0; i < 12; i++) {
-     packet[12+i] = randbits[i];
+     packet[16+i] = randbits[i];
    }
 
-   memcpy(&packet[24], key, PKD_KEY_SIZE);
+   memcpy(&packet[28], key, PKD_KEY_SIZE);
 #if 0
-   for (i=0; i < 24+PKD_KEY_SIZE; i++) {
+   for (i=0; i < 28+PKD_KEY_SIZE; i++) {
      fprintf(stderr, "%02x", packet[i]);
    }
    fprintf(stderr, "\n");
 #endif
    /* do the hash */
-   err = SHA256_Update(&sha_c, packet, 64);
+   err = SHA256_Update(&sha_c, packet, 68);
    if (err == 0) {
      fprintf(stderr, "SHA256_Update failed %d\n", err);
      exit(0);
@@ -240,11 +245,20 @@ int main (int argc, char* argv[]) {
 
    /* copy hash results to the packet */
    for (i=0; i < SHA256_DIGEST_LENGTH; i++) {
-     packet[24+i] = md[i];
+     packet[28+i] = md[i];
    }
 
+   /* set up socket */
+   sfd = setup_udp_socket(argv[1], port, address);
+
+   /* set up destination sock_addr structure */
+   memset(&saddr, 0, sizeof(saddr));
+   saddr.sin_family = AF_INET;
+   saddr.sin_addr.s_addr = inet_addr(address);
+   saddr.sin_port = htons(port);
+
    /* send the packet */
-   write(sfd, packet, 24+SHA256_DIGEST_LENGTH);
+   sendto(sfd, packet+4, 24+SHA256_DIGEST_LENGTH, 0, (const struct sockaddr*)&saddr, sizeof(saddr));
    close(sfd);
    exit(0);
 }

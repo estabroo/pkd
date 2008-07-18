@@ -24,7 +24,10 @@
 #include <asm/semaphore.h>
 #include <asm/atomic.h>
 #include <linux/version.h>
-
+#include <linux/proc_fs.h>
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
+#include <net/net_namespace.h>
+#endif
 #include "ipt_pkd.h"
 
 #ifndef PKD_VERSION
@@ -47,6 +50,7 @@ static void hexdump(unsigned char *buf, unsigned int len)
 #endif
 
 #define _PKD_BUFFERS 4
+#define _PKD_PACKETS 32
 
 struct _pkd_buff {
   struct semaphore    sem;
@@ -54,10 +58,25 @@ struct _pkd_buff {
   unsigned char*      sbuff;
 };
 
+struct _pkd_packets {
+  unsigned int  replays; /* number of times we've seen this packet */
+  unsigned char ports[4]; /* source & destination ports */
+  unsigned char packet[56]; /* packet */
+  time_t        last_seen; /* for age/hits check */
+};
+
+static struct _pkd_packets pkd_packets[_PKD_PACKETS]; /* old good packets, help cut down on replay */
+static int pkd_phead; /* next potential replacement candidate */
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
 //static char check[] = "PKD0"; // now handled by --tag option
+static unsigned long _pkd_replay_count;
 static unsigned char _pkd_next_sem = 0;
 static DEFINE_SPINLOCK(_pkd_lock);
+static DEFINE_SPINLOCK(_pkd_pkt_lock);
+
+#ifdef CONFIG_PROC_FS
+static struct proc_dir_entry *proc_entry;
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
 static int
@@ -81,16 +100,18 @@ ipt_pkd_match(const struct sk_buff *skb,
     char                       result[64];
     struct scatterlist         sg[1];
     struct hash_desc           desc;
-    int                        i;
+    int                        i,j;
     int                        err;
+    unsigned int               tleast;
     unsigned short             len;
+    unsigned char*             dport;
     struct timeval             current_time;
     time_t                     tpacket_time;
     time_t                     packet_time;
     unsigned char              wait_on_sem;
     unsigned long              pdiff;
     const struct ipt_pkd_info* info = matchinfo;
-
+    
     /* do early kickout/fatal checks */
     if (skb == NULL) {
       printk(KERN_NOTICE "ipt_pkd: invalid skb info (NULL)\n");
@@ -126,6 +147,7 @@ ipt_pkd_match(const struct sk_buff *skb,
       return 0;
     }
     pdata = (void *)uh + 8;
+    dport = (unsigned char*)uh;
 
     for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock or for a different knock */
       if (pdata[i] != info->tag[i]) {
@@ -175,23 +197,65 @@ ipt_pkd_match(const struct sk_buff *skb,
     desc.tfm = pkd_buffers[i].tfm;
     desc.flags = 0;
 
-    memcpy(pkd_buffers[i].sbuff, pdata, 24);
-    memcpy(pkd_buffers[i].sbuff+24, info->key, PKD_KEY_SIZE);
+    memcpy(pkd_buffers[i].sbuff, dport, 4);
+    memcpy(pkd_buffers[i].sbuff+4, pdata, 24);
+    memcpy(pkd_buffers[i].sbuff+28, info->key, PKD_KEY_SIZE);
 
-    sg_set_buf(&sg[0], pkd_buffers[i].sbuff, 24+PKD_KEY_SIZE);
+    sg_set_buf(&sg[0], pkd_buffers[i].sbuff, 28+PKD_KEY_SIZE);
 
-    err = crypto_hash_digest(&desc, sg, 24+PKD_KEY_SIZE, result);
+    err = crypto_hash_digest(&desc, sg, 28+PKD_KEY_SIZE, result);
     if (err) {
       printk(KERN_WARNING "ipt_pkd: digest sha256 failed, err = %d\n", err);
       up(&pkd_buffers[i].sem);
       return 0;
     }
-
     err = memcmp(result, &pdata[24], crypto_hash_digestsize(pkd_buffers[i].tfm));
     up(&pkd_buffers[i].sem);
+    
 
     if (err == 0) {
-      /* good knock, put on list to reduce replay? */
+      spin_lock(&_pkd_pkt_lock);      /* good knock, put on list to reduce replay? */
+      packet_time = 0;
+      j = pkd_phead;
+      for (i=0; i < _PKD_PACKETS; i++) {
+        tleast = pkd_packets[i].replays;
+        if (tleast >= 1) {
+          err = memcmp(dport, pkd_packets[i].ports, 4);
+          if (err != 0) { /* not a match, skip the rest of the check */
+            continue;
+          }
+          err = memcmp(pdata, pkd_packets[i].packet, 56);
+          if (err == 0) {
+            _pkd_replay_count++;
+            tleast++;
+            if (tleast == 0) { /* wow, someone rolled over the replay */
+              tleast = 1000; /* keep it and start it at a decent number */
+            }
+            pkd_packets[i].replays = tleast;
+            pkd_packets[i].last_seen = current_time.tv_sec;
+            spin_unlock(&_pkd_pkt_lock);
+            printk(KERN_WARNING "ipt_pkd: possible replay attack, packet repeated [%u]\n", tleast);
+            return 0;
+          }
+          tpacket_time = (current_time.tv_sec - pkd_packets[i].last_seen)/tleast;
+          if (tpacket_time > packet_time) {
+            packet_time = tpacket_time;
+            j = i;
+          }
+        }
+      }
+      /* didn't find a match add it to list */
+      if (pkd_packets[pkd_phead].replays == 0) { /* unused */
+        i = pkd_phead;
+      } else {
+        i = j;
+      }
+      memcpy(pkd_packets[i].ports, dport, 4);
+      memcpy(pkd_packets[i].packet, pdata, 56);
+      pkd_packets[i].last_seen = current_time.tv_sec;
+      pkd_packets[i].replays = 1;
+      pkd_phead = (pkd_phead + 1) % _PKD_PACKETS;
+      spin_unlock(&_pkd_pkt_lock);
       return 1;
     }
     return 0;
@@ -205,12 +269,49 @@ static struct xt_match pkd_match = {
 	.me		= THIS_MODULE,
 };
 
+static int proc_pkd_read(char* page, char** start, off_t off,
+                         int count, int *eof, void *data) {
+  int len;
+  int i,j;
+  char buffer[4096];
+
+  spin_lock(&_pkd_pkt_lock);
+  len = snprintf(buffer, sizeof(buffer), "Replayed packets: %lu\n", _pkd_replay_count);
+  for (j=0; j < _PKD_PACKETS; j++) {
+    if (pkd_packets[j].replays > 0) {
+      i = snprintf(buffer+len, sizeof(buffer)-len, "\t%d seen %d, last seen %lu\n", j, pkd_packets[j].replays,
+                   pkd_packets[j].last_seen);
+      len += i;
+      if (len >= sizeof(buffer)) {
+        len = sizeof(buffer);
+        page[sizeof(buffer)-1] = '\0';
+        break;
+      }
+    }
+  }
+  spin_unlock(&_pkd_pkt_lock);
+  if (off >= len) {
+    *eof = 1;
+    len = 0;
+  } else {
+    i = off+count;
+    if (i > len) {
+      i = len - off;
+    }
+    memcpy(page, buffer+off, i);
+    len = i;
+    *eof = 0;
+  }
+  return len;
+}
+
 static int __init ipt_pkd_init(void)
 {
     int err;
     int i;
 
     _pkd_next_sem = 0;
+    _pkd_replay_count = 0;
     memset(pkd_buffers, 0, sizeof(pkd_buffers));
     for (i=0; i < _PKD_BUFFERS; i++) {
       sema_init(&pkd_buffers[i].sem, 1);
@@ -225,7 +326,7 @@ static int __init ipt_pkd_init(void)
         }
         return -EAGAIN;
       }
-      pkd_buffers[i].sbuff = kmalloc(24+PKD_KEY_SIZE, GFP_KERNEL);
+      pkd_buffers[i].sbuff = kmalloc(28+PKD_KEY_SIZE, GFP_KERNEL);
       if (pkd_buffers[i].sbuff == NULL) {
         crypto_free_hash(pkd_buffers[i].tfm);
         pkd_buffers[i].tfm = NULL;
@@ -238,7 +339,27 @@ static int __init ipt_pkd_init(void)
         return -ENOMEM;
       }
     }
+
+    memset(pkd_packets, 0, sizeof(pkd_packets));
+    spin_lock_init(&_pkd_lock);
+    spin_lock_init(&_pkd_pkt_lock);
+    pkd_phead = 0;
+
     err = xt_register_match(&pkd_match);
+#ifdef CONFIG_PROC_FS
+    if (err) {
+      return err;
+    }
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
+    proc_entry = create_proc_read_entry("ipt_pkd", 0400, init_net.proc_net, proc_pkd_read, NULL);
+#else
+    proc_entry = create_proc_read_entry("ipt_pkd", 0400, proc_net, proc_pkd_read, NULL);
+#endif
+    if (proc_entry == NULL) {
+      xt_unregister_match(&pkd_match);
+      err = -ENOMEM;
+    }
+#endif
     return err;
 }
 
@@ -254,6 +375,13 @@ static void __exit ipt_pkd_exit(void)
       	crypto_free_hash(pkd_buffers[i].tfm);
       }
     }
+#ifdef CONFIG_PROC_FS
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
+    remove_proc_entry("ipt_pkd", init_net.proc_net);
+#else
+    remove_proc_entry("ipt_pkd", proc_net);
+#endif
+#endif
     xt_unregister_match(&pkd_match);
 }
 
