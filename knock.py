@@ -49,6 +49,10 @@ for site in (args):
             tag = config.get(site, "tag");
         except:
             tag = "PKD0";
+        try:
+            old = config.get(site, "old");
+        except:
+            old = "new";
 
         if (key.startswith("0x")):
             bkey = a2b_hex(key[2:])
@@ -70,7 +74,10 @@ for site in (args):
         
         bport = pack("<BBBB", ((port & 0xff00) >> 8), port & 0xff, (port & 0xff00) >> 8, port & 0xff)
         p = btag + pack("<IIIII", int(time.time()), 0, getrandbits(32), getrandbits(32), getrandbits(32))
-        ssum = bport + p + bkey
+        if (old != "new"):
+            ssum = p + bkey
+        else:
+            ssum = bport + p + bkey
         m = hashlib.sha256()
         m.update(ssum);
         d = m.digest()

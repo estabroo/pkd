@@ -1,6 +1,8 @@
 ipt_pkd is a port knock detector with spa (single packet authorization) which when used in conjuction with ipt_recent gives you a decent port knocking system thats based in iptables.
 
-The knock packet is a sha256 of a timestamp, some random bytes, a small header, and a shared key sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.
+The knock packet is a sha256 of a timestamp, some random bytes, a small header, and a shared key, sent via udp.  The timestamp and the bytes are passed in the packet so the server can do the sha256 and compare the results.  If its a match then the pkd module returns true, otherwise false.  *NOTE* The format of the packet changed in 1.0, it is not compatible with earlier versions.  The source and destination ports are used in the hash to eliminate a replay attack avenue.
+
+It has limited proc support.  It opens an entry /proc/net/ipt_pkd.  Reading this file (with cat, less, ...) gives information about packets outside of the time window and how many replayed packets it thinks it has seen, and the ports + last timestamps of replayed packets that it has in it's packet queue.
 
 ipt_pkd has two options:
 --key <key>       Sets the shared key, it's up to 40 bytes long and can be entered in as hex by starting it with 0x.
@@ -40,7 +42,7 @@ knock.py      -- client knock in python       stays   knock.py
 ipt_pkd.h     -- common header
 
 knock (c version) gets the host (and optional tag) from the command line and then asks for a password
-knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.
+knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.  knock.py has a compatibility mode for older knock packets, just add old=1 to an entry you want to use the previous packet style.
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
 
@@ -54,16 +56,17 @@ You might need to set the IPT_VERS in the Makefile manually.  It tries to get it
 
 Machines tested on:
 VMWare client 32 bit running Ubuntu Fiesty 2.6.20-16 kernel and iptables 1.3.6
-x86 32bit running Debian unstable 2.6.22-686 kernel and iptables 1.3.8
-x86_64 64bit running Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
-x86_64 64bit running Sidux unstable 2.6.23.12-slh64-smp-2 kernel and iptables 1.4.0
-Sparc 64bit running Debian unstable 2.6.22-2-sparc64 kernel and iptables 1.3.8
-x86 32bit running Ubuntu 8.04 server 2.6.24-16-server kernel and iptables 1.3.8
-x86 32bit running Ubuntu 8.04 desktop 2.6.24-17-generic kernel and iptables 1.4.1.1
+x86 32bit Debian unstable 2.6.22-686 kernel and iptables 1.3.8
+x86_64 64bit Sidux unstable 2.6.23 (vanilla) kernel and iptables 1.3.8
+x86_64 64bit Sidux unstable 2.6.23.12-slh64-smp-2 kernel and iptables 1.4.0
+Sparc 64bit Debian unstable 2.6.22-2-sparc64 kernel and iptables 1.3.8
+x86 32bit Ubuntu 8.04 server 2.6.24-16-server kernel and iptables 1.3.8
+x86 32bit Ubuntu 8.04 desktop 2.6.24-17-generic kernel and iptables 1.4.1.1
+x86_64 64bit Sidux unstable 2.6.25-2 kernel and iptables 1.4.1.1 
 
 Eric 
 
 eric@urbanrage.com
 
 
-The release includes headers from iptables-1.4.0 & 1.4.1.1.  I did this because iptables-dev for >= 1.4.0 on debian systems at least no longer includes the headers required to build this extension.
+The release includes headers from iptables-1.4.0 & 1.4.1.1.  I did this because iptables-dev for 1.4.0 on debian systems at least no longer includes the headers required to build this extension (I just kind of figured 1.4.1.1 would be the same, but I could be wrong).
