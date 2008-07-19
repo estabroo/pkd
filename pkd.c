@@ -70,6 +70,7 @@ static int pkd_phead; /* next potential replacement candidate */
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
 //static char check[] = "PKD0"; // now handled by --tag option
 static unsigned long _pkd_replay_count;
+static unsigned long _pkd_ootime_count;
 static unsigned char _pkd_next_sem = 0;
 static DEFINE_SPINLOCK(_pkd_lock);
 static DEFINE_SPINLOCK(_pkd_pkt_lock);
@@ -172,6 +173,7 @@ ipt_pkd_match(const struct sk_buff *skb,
       pdiff = abs(current_time.tv_sec - packet_time);
       if (pdiff > info->window) { /* packet outside of time window */
         /*printk(KERN_NOTICE "ipt_pkd: packet outside of time window, replay attack? %lu\n", pdiff);*/
+        _pkd_ootime_count++;
         return 0;
       }
     }
@@ -278,9 +280,11 @@ static int proc_pkd_read(char* page, char** start, off_t off,
 
   /* number of bytes to return with each read */
   spin_lock(&_pkd_pkt_lock);
-  len = snprintf(buffer, sizeof(buffer), "Replayed packets: %lu\n", _pkd_replay_count);
+  len = snprintf(buffer, sizeof(buffer), "Packets outside of time window: %lu\n", _pkd_ootime_count);
+  i = snprintf(buffer+len, sizeof(buffer)-len, "Replayed packets: %lu\n", _pkd_replay_count);
+  len += i;
   for (j=0; j < _PKD_PACKETS; j++) {
-    if (pkd_packets[j].replays > 0) {
+    if (pkd_packets[j].replays > 1) {
       port = (pkd_packets[j].ports[0] << 8) | pkd_packets[j].ports[1];
       i = snprintf(buffer+len, sizeof(buffer)-len, "  port %5d seen %d, last %lu\n", port, pkd_packets[j].replays,
                    pkd_packets[j].last_seen);
@@ -318,6 +322,7 @@ static int __init ipt_pkd_init(void)
 
     _pkd_next_sem = 0;
     _pkd_replay_count = 0;
+    _pkd_ootime_count = 0;
     memset(pkd_buffers, 0, sizeof(pkd_buffers));
     for (i=0; i < _PKD_BUFFERS; i++) {
       sema_init(&pkd_buffers[i].sem, 1);
