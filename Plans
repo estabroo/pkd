@@ -1,4 +1,3 @@
-n-depth last seen succesful knocks to elminate replays (early or late check?)
 add ip as an option to the packet
 use tcp packets and well known ports for firewall bypassing
 add config file reading to knock program

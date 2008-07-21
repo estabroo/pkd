@@ -1,0 +1,12 @@
+1.0	20080721 17:17
+	* proc_fs interface giving basic packet stats
+	* Support for 2.6.25 kernels (might even work in 2.6.26)
+	* packet list to reduce replays even when window is 0
+	* tag option, allows for more efficient packet processing when
+	  you have multiple keys/services
+	* support for iptables 1.4.1.1 (and 1.4.1 but who is using it?)
+	* added version to modinfo
+	* added Changelog file (will it be kept up-to-date?)
+	* packet format is incompatible with earlier versions
+	* both knock programs support old and new style
+	  use -o for knock and add old=1 in the ini file for knock.py

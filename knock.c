@@ -76,7 +76,8 @@ int setup_udp_socket(char* host, int port, char address[20]) {
 }
 
 void usage(char* argv[]) {
-  fprintf(stderr, "usage: %s host_to_knock [tag [port]]\n", argv[0]);
+  fprintf(stderr, "usage: %s [-o] host_to_knock [tag [port]]\n", argv[0]);
+  fprintf(stderr, " -o use old packet format (pre 1.0 pkd installs)\n");
   exit(0);
 }
 
@@ -85,6 +86,7 @@ void usage(char* argv[]) {
 int main (int argc, char* argv[]) {
    int                sfd;
    int                fd;
+   int                old; /* old style format? */
    unsigned short     port;
    unsigned char      hport[4];
    int                err;
@@ -103,9 +105,16 @@ int main (int argc, char* argv[]) {
    char               address[20];
    struct sockaddr_in saddr;
 
-   if ((argc < 2) || (argc > 4)) {
+   if (strcmp(argv[1], "-o") == 0) {
+     old = 1;
+   } else {
+     old = 0;
+   }
+
+   if ((argc < (2+old)) || (argc > (4+old))) {
      usage(argv);
    }
+   
    
    /* get key */
    memset(&term, 0, sizeof(term));
@@ -164,11 +173,11 @@ int main (int argc, char* argv[]) {
      }
    }
 
-   if (argc < 3) {
+   if (argc < (3+old)) {
      strncpy(tag, "PKD0", 4);
    } else {
      memset(tag, 0, sizeof(tag));
-     ptr = argv[2];
+     ptr = argv[2+old];
      if (ptr[0] == '0' && ptr[1] == 'x') { /* entered in as hex, convert it */
        for(i=2,j=0; j < PKD_TAG_SIZE; i++,j++) {
          if (!isxdigit(ptr[i])) break;
@@ -185,8 +194,8 @@ int main (int argc, char* argv[]) {
      }
    }
 
-   if (argc == 4) {
-     port = atoi(argv[3]);
+   if (argc == (4+old)) {
+     port = atoi(argv[3+old]);
    } else {
      port = randbits[3] << 8 | randbits[7];
    }
@@ -232,7 +241,11 @@ int main (int argc, char* argv[]) {
    fprintf(stderr, "\n");
 #endif
    /* do the hash */
-   err = SHA256_Update(&sha_c, packet, 68);
+   if (old == 0) {
+     err = SHA256_Update(&sha_c, packet, 68);
+   } else {
+     err = SHA256_Update(&sha_c, packet+4, 64);
+   }
    if (err == 0) {
      fprintf(stderr, "SHA256_Update failed %d\n", err);
      exit(0);
@@ -249,7 +262,7 @@ int main (int argc, char* argv[]) {
    }
 
    /* set up socket */
-   sfd = setup_udp_socket(argv[1], port, address);
+   sfd = setup_udp_socket(argv[1+old], port, address);
 
    /* set up destination sock_addr structure */
    memset(&saddr, 0, sizeof(saddr));
