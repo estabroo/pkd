@@ -59,7 +59,7 @@ struct _pkd_buff {
 };
 
 struct _pkd_packets {
-  unsigned int  replays; /* number of times we've seen this packet */
+  unsigned long replays; /* number of times we've seen this packet */
   unsigned char ports[4]; /* source & destination ports */
   unsigned char packet[56]; /* packet */
   time_t        last_seen; /* for age/hits check */
@@ -70,6 +70,7 @@ static int pkd_phead; /* next potential replacement candidate */
 static struct _pkd_buff pkd_buffers[_PKD_BUFFERS]; /* pointers to buffer used for scatterlist */
 //static char check[] = "PKD0"; // now handled by --tag option
 static unsigned long _pkd_replay_count;
+static unsigned long _pkd_good_count;
 static unsigned long _pkd_ootime_count;
 static unsigned char _pkd_next_sem = 0;
 static DEFINE_SPINLOCK(_pkd_lock);
@@ -103,7 +104,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     struct hash_desc           desc;
     int                        i,j;
     int                        err;
-    unsigned int               tleast;
+    unsigned long              tleast;
     unsigned short             len;
     unsigned char*             dport;
     struct timeval             current_time;
@@ -222,7 +223,8 @@ ipt_pkd_match(const struct sk_buff *skb,
       for (i=0; i < _PKD_PACKETS; i++) {
         tleast = pkd_packets[i].replays;
         if (tleast >= 1) {
-          tpacket_time = (current_time.tv_sec - pkd_packets[i].last_seen)/tleast;
+          pdiff = (current_time.tv_sec - pkd_packets[i].last_seen);
+          tpacket_time = pdiff/tleast;
           if (tpacket_time > packet_time) {
             packet_time = tpacket_time;
             j = i;
@@ -235,7 +237,9 @@ ipt_pkd_match(const struct sk_buff *skb,
           if (err == 0) {
             _pkd_replay_count++;
             tleast++;
-            if (tleast == 0) { /* wow, someone rolled over the replay */
+            if (tleast == 0) {
+              /* wow, someone rolled over the replay (thats about 6 hours of continuous packet
+                 sending at 100mb/s if this is a 32bit system and about 3 million years on 64bit) */
               tleast = 1000; /* keep it and start it at a decent number */
             }
             pkd_packets[i].replays = tleast;
@@ -243,6 +247,12 @@ ipt_pkd_match(const struct sk_buff *skb,
             spin_unlock(&_pkd_pkt_lock);
             /*printk(KERN_WARNING "ipt_pkd: possible replay attack, packet repeated [%u]\n", tleast);*/
             return 0;
+          }
+          /* if the packet time is outside the window check
+             then we can remove them here since the time
+             check will kick the packets out before this point */
+          if ((info->window > 0) && (pdiff > (2*info->window))) {
+            pkd_packets[i].replays = 0;
           }
         }
       }
@@ -258,6 +268,7 @@ ipt_pkd_match(const struct sk_buff *skb,
       pkd_packets[i].replays = 1;
       pkd_phead = (pkd_phead + 1) % _PKD_PACKETS;
       spin_unlock(&_pkd_pkt_lock);
+      _pkd_good_count++;
       return 1;
     }
     return 0;
@@ -281,12 +292,14 @@ static int proc_pkd_read(char* page, char** start, off_t off,
   /* number of bytes to return with each read */
   spin_lock(&_pkd_pkt_lock);
   len = snprintf(buffer, sizeof(buffer), "Packets outside of time window: %lu\n", _pkd_ootime_count);
+  i = snprintf(buffer+len, sizeof(buffer)-len, "Good packets: %lu\n", _pkd_good_count);
+  len += i;
   i = snprintf(buffer+len, sizeof(buffer)-len, "Replayed packets: %lu\n", _pkd_replay_count);
   len += i;
   for (j=0; j < _PKD_PACKETS; j++) {
     if (pkd_packets[j].replays > 1) {
       port = (pkd_packets[j].ports[0] << 8) | pkd_packets[j].ports[1];
-      i = snprintf(buffer+len, sizeof(buffer)-len, "  port %5d seen %d, last %lu\n", port, pkd_packets[j].replays,
+      i = snprintf(buffer+len, sizeof(buffer)-len, "  port %5d seen %lu, last %lu\n", port, pkd_packets[j].replays,
                    pkd_packets[j].last_seen);
       len += i;
       if (len >= sizeof(buffer)) {
@@ -322,6 +335,7 @@ static int __init ipt_pkd_init(void)
 
     _pkd_next_sem = 0;
     _pkd_replay_count = 0;
+    _pkd_good_count = 0;
     _pkd_ootime_count = 0;
     memset(pkd_buffers, 0, sizeof(pkd_buffers));
     for (i=0; i < _PKD_BUFFERS; i++) {
