@@ -60,7 +60,7 @@ struct _pkd_buff {
 
 struct _pkd_packets {
   unsigned long replays; /* number of times we've seen this packet */
-  unsigned char ports[4]; /* source & destination ports */
+  unsigned char dport[2]; /* destination port */
   unsigned char packet[56]; /* packet */
   time_t        last_seen; /* for age/hits check */
 };
@@ -149,7 +149,7 @@ ipt_pkd_match(const struct sk_buff *skb,
       return 0;
     }
     pdata = (void *)uh + 8;
-    dport = (unsigned char*)uh;
+    dport = (unsigned char*)uh+2;
 
     for (i=0; i < 4; i++) { /* quick check so we can bail out early if it isn't a knock or for a different knock */
       if (pdata[i] != info->tag[i]) {
@@ -200,7 +200,8 @@ ipt_pkd_match(const struct sk_buff *skb,
     desc.tfm = pkd_buffers[i].tfm;
     desc.flags = 0;
 
-    memcpy(pkd_buffers[i].sbuff, dport, 4);
+    memcpy(pkd_buffers[i].sbuff, dport, 2);
+    memcpy(pkd_buffers[i].sbuff+2, dport, 2); /* lazy fix so we don't have to change the userspace as well */
     memcpy(pkd_buffers[i].sbuff+4, pdata, 24);
     memcpy(pkd_buffers[i].sbuff+28, info->key, PKD_KEY_SIZE);
 
@@ -229,7 +230,7 @@ ipt_pkd_match(const struct sk_buff *skb,
             packet_time = tpacket_time;
             j = i;
           }
-          err = memcmp(dport, pkd_packets[i].ports, 4);
+          err = memcmp(dport, pkd_packets[i].dport, 2);
           if (err != 0) { /* not a match, skip the rest of the check */
             continue;
           }
@@ -262,7 +263,7 @@ ipt_pkd_match(const struct sk_buff *skb,
       } else {
         i = j;
       }
-      memcpy(pkd_packets[i].ports, dport, 4);
+      memcpy(pkd_packets[i].dport, dport, 2);
       memcpy(pkd_packets[i].packet, pdata, 56);
       pkd_packets[i].last_seen = current_time.tv_sec;
       pkd_packets[i].replays = 1;
@@ -298,7 +299,7 @@ static int proc_pkd_read(char* page, char** start, off_t off,
   len += i;
   for (j=0; j < _PKD_PACKETS; j++) {
     if (pkd_packets[j].replays > 1) {
-      port = (pkd_packets[j].ports[0] << 8) | pkd_packets[j].ports[1];
+      port = (pkd_packets[j].dport[0] << 8) | pkd_packets[j].dport[1];
       i = snprintf(buffer+len, sizeof(buffer)-len, "  port %5d seen %lu, last %lu\n", port, pkd_packets[j].replays,
                    pkd_packets[j].last_seen);
       len += i;

@@ -10,3 +10,6 @@
 	* packet format is incompatible with earlier versions
 	* both knock programs support old and new style
 	  use -o for knock and add old=1 in the ini file for knock.py
+
+1.1 20080723 16:42
+	* removed source port from hash, forgot that NAT can mess it up
