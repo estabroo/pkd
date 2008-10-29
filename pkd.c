@@ -22,7 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/netfilter/x_tables.h>
 #include <asm/byteorder.h>
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,26))
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,25))
 #include <linux/semaphore.h>
 #else
 #include <asm/semaphore.h>
