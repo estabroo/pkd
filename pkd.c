@@ -6,6 +6,7 @@
  * published by the Free Software Foundation.
  *
  */
+#include <linux/version.h>
 #include <linux/init.h>
 #include <linux/in.h>
 #include <linux/ip.h>
@@ -27,7 +28,6 @@
 #include <asm/semaphore.h>
 #endif
 #include <asm/atomic.h>
-#include <linux/version.h>
 #include <linux/proc_fs.h>
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
 #include <net/net_namespace.h>
