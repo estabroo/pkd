@@ -87,7 +87,7 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
     ret = 1;
   }; break;
   case 'w' : {
-    info->window = atol(optarg);
+    info->window = atoi(optarg);
     if (info->window >= 0) {
       ret = 1;
     }
@@ -144,7 +144,7 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
     printf(" ");
   
     if (info->window >= 0) {
-      printf("window: %lu ", info->window);
+      printf("window: %u ", info->window);
     } else {
       printf("window: 10 ");
     }
