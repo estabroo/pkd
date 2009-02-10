@@ -90,12 +90,15 @@ ipt_pkd_match(const struct sk_buff *skb,
               const struct net_device *in, const struct net_device *out,
               const struct xt_match *match, const void *matchinfo,
               int offset, unsigned int protoff, int *hotdrop)
-#else
+#elsif (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
 static bool
 ipt_pkd_match(const struct sk_buff *skb,
               const struct net_device *in, const struct net_device *out,
               const struct xt_match *match, const void *matchinfo,
               int offset, unsigned int protoff, bool *hotdrop)
+#else
+static bool
+ipt_pkd_match(const struct sk_buff *skb, const struct xt_match_param *params)
 #endif
 
 {
@@ -116,7 +119,13 @@ ipt_pkd_match(const struct sk_buff *skb,
     time_t                     packet_time;
     unsigned char              wait_on_sem;
     unsigned long              pdiff;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28))
     const struct ipt_pkd_info* info = matchinfo;
+#else
+    const struct ipt_pkd_info* info = params->matchinfo;
+    const struct xt_match* match = params->match;
+    unsigned int protoff = params->thoff;
+#endif
     
     /* do early kickout/fatal checks */
     if (skb == NULL) {
@@ -127,6 +136,10 @@ ipt_pkd_match(const struct sk_buff *skb,
       printk(KERN_NOTICE "ipt_pkd: invalid match info (NULL)\n");
       return 0;
     }
+    /* don't try to match ipv6 yet */
+    if (match->family != AF_INET) {
+      return 0;
+    }
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
     iph = skb->nh.iph;
 #else
@@ -135,6 +148,7 @@ ipt_pkd_match(const struct sk_buff *skb,
     if (iph == NULL) {
       return 0;
     }
+
     if (iph->protocol != IPPROTO_UDP) { /* just in case they didn't filter tcp out for us */
       return 0;
     }
