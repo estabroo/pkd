@@ -1,6 +1,6 @@
 #!/usr/bin/make
 
-PKD_VERSION = 1.3
+PKD_VERSION = 1.4
 
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
@@ -25,14 +25,30 @@ else
 	IPT_CFLAGS = -I. -I./include-$(IPT_VERS) -I${KERNEL_DIR}/include -DIPT14=1
 endif
 
-LIBDIR_T := $(shell strings $(IPTABLES) | grep -A 1 TABLES | grep ^/ )
-LIBDIR := $(strip $(LIBDIR_T))
 
-XTABLES_T := $(shell strings $(IPTABLES) | grep XTABLES)
-XTABLES := $(strip $(XTABLES_T))
-ifeq ($(XTABLES), XTABLES_LIBDIR)
-	IPT_CFLAGS += -DXTABLES=1
+libXTABLES_T := $(shell strings $(IPTABLES) | grep libxtables)
+libXTABLES := $(strip $(libXTABLES_T))
+ifeq ($(libXTABLES), )
+
+	LIBDIR_T := $(shell strings $(IPTABLES) | grep -A 1 TABLES | grep ^/ )
+	LIBDIR := $(strip $(LIBDIR_T))
+
+	XTABLES_T := $(shell strings $(IPTABLES) | grep XTABLES)
+	XTABLES := $(strip $(XTABLES_T))
+	ifeq ($(XTABLES), XTABLES_LIBDIR)
+		IPT_CFLAGS += -DXTABLES=1
+	endif
+else
+	IPT_CFLAGS += -DXTABLES=1 -DLIBXTABLES=1
+	LIBDIR_T := $(shell strings /lib/$(libXTABLES) | grep -A 1 TABLES | grep ^/ )
+	LIBDIR := $(strip $(LIBDIR_T))
+	LIBID_T := $(shell strings /lib/$(libXTABLES) | grep -m 1 libxtables.so )
+	LIBID := $(strip $(LIBID_T))
+	ifneq ($(LIBID), )
+		IPT_CFLAGS += -DXTABLES_VERSION=$(LIBID)
+	endif
 endif
+	
 
 .PHONY: all
 all: knock lib module
@@ -51,6 +67,9 @@ dist:
 
 clean:
 	rm -rf *.o *.so *.ko *.mod.c .*cmd .tmp* Module.symvers knock *.tgz *.sha1sum
+
+knock.o: knock.c
+	${CC} -g -c $+
 
 knock: knock.o
 	${CC} -o $@ $+ -lssl

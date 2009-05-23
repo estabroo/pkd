@@ -105,6 +105,9 @@ int main (int argc, char* argv[]) {
    char               address[20];
    struct sockaddr_in saddr;
 
+   if (argc < 2) {
+     usage(argv);
+   }
    if (strcmp(argv[1], "-o") == 0) {
      old = 1;
    } else {

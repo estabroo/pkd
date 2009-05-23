@@ -41,7 +41,14 @@ if (len(read) == 0):
 for site in (args):
     if (config.has_section(site)):
         host = config.get(site, "host")
-        port = randint(1024, 50000)
+        try:
+            ports = config.get(site, "port");
+            try:
+                port = int(ports)
+            except:
+                port = randint(1024, 50000)
+        except:
+        	port = randint(1024, 50000)
         sock = socket(AF_INET, SOCK_DGRAM)
         sock.bind(('', port))
         key = config.get(site, "key")

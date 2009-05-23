@@ -14,6 +14,12 @@
 #include <iptables.h>
 #include "ipt_pkd.h"
 
+#ifdef LIBXTABLES
+	#define PKD_ERROR xtables_error
+#else
+	#define PKD_ERROR exit_error
+#endif
+
 static struct option opts[] = {
 	{ .name = "key",      .has_arg = 1, .flag = 0, .val = 'k' },
     { .name = "window",   .has_arg = 1, .flag = 0, .val = 'w' },
@@ -122,7 +128,7 @@ static void final_check(unsigned int flags)
 {
   //printf("flags = 0x%08x\n", flags);
   if ((flags & 1) == 0) {
-    exit_error(PARAMETER_PROBLEM, "pkd: you must specify a key `--key key'");
+    PKD_ERROR(PARAMETER_PROBLEM, "pkd: you must specify a key `--key key'");
   }
 }
 
@@ -189,7 +195,11 @@ static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match)
 #ifdef XTABLES
 static struct xtables_match pkd = { 
     .name          = "pkd",
-    .version       = XTABLES_VERSION,
+#ifdef LIBXTABLES
+    .version       = XTABLES_VERSION, 
+#else
+    .version       = IPTABLES_VERSION, 
+#endif
     .family        = PF_INET,
     .size          = XT_ALIGN(sizeof(struct ipt_pkd_info)),
     .userspacesize = XT_ALIGN(sizeof(struct ipt_pkd_info)),
