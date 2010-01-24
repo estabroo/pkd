@@ -88,6 +88,11 @@ lib: libipt_pkd.so
 install-lib: lib
 	install -s -m 0644 -o root -g root -t $(LIBDIR) libipt_pkd.so
 
+.PHONY: vyatta-install
+vyatta-install:
+	install -s -m 0644 -o root -g root -t /lib/xtables vyatta-5/libipt_pkd.so
+	install -s -m 0400 -o root -g root -t /lib/modules/`uname -r`/extra vyatta-5/ipt_pkd.ko
+
 # below is the stuff for the kernel make stuff to work on
 obj-m := ipt_pkd.o
 ipt_pkd-objs := pkd.o
