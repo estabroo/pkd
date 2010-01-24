@@ -60,7 +60,7 @@ install: install-lib install-module
 .PHONY: dist
 dist:
 	@mkdir pkd-${PKD_VERSION}
-	@cp -a include* example.ipt_pkd.ini knock.py GPLv2 Changelog DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile pkd-${PKD_VERSION}
+	@cp -a include* example.ipt_pkd.ini knock.py GPLv2 Changelog DISCLAIMER README knock.c libipt_pkd.c pkd.c ipt_pkd.h Makefile vyatta-5 pkd-${PKD_VERSION}
 	tar -czvf pkd-${PKD_VERSION}.tgz pkd-${PKD_VERSION}
 	@rm -rf pkd-${PKD_VERSION}
 	sha1sum pkd-${PKD_VERSION}.tgz > pkd-${PKD_VERSION}.tgz.sha1sum
@@ -87,11 +87,6 @@ lib: libipt_pkd.so
 .PHONY: install-lib
 install-lib: lib
 	install -s -m 0644 -o root -g root -t $(LIBDIR) libipt_pkd.so
-
-.PHONY: vyatta-install
-vyatta-install:
-	install -s -m 0644 -o root -g root -t /lib/xtables vyatta-5/libipt_pkd.so
-	install -s -m 0400 -o root -g root -t /lib/modules/`uname -r`/extra vyatta-5/ipt_pkd.ko
 
 # below is the stuff for the kernel make stuff to work on
 obj-m := ipt_pkd.o
