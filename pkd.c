@@ -306,7 +306,7 @@ static int proc_pkd_read(char* page, char** start, off_t off,
   int len;
   int i,j;
   unsigned short port;
-  char buffer[4096];
+  char buffer[2000];
 
   /* number of bytes to return with each read */
   spin_lock(&_pkd_pkt_lock);

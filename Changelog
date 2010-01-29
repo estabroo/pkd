@@ -30,3 +30,8 @@
 1.5 20091204 9:06
 	* added support for iptables 1.4.4 & 1.4.5 (just added symlinks)
 	* checked against 2.6.31
+
+1.6 20100128 9:15
+	* checked against 1.4.6 iptables and 2.6.32 kernel
+	* added pre-compiled vyatta-5 stuff
+	* switched proc output to be inside framesize (newer gcc complained)
