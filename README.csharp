@@ -1,3 +1,5 @@
 New knock client written in c# tested on both windows and linux.  Compiled exe in knock_csharp/knock/bin/Release/knock.exe
 
 Written using monodevelop though the project will probably work in visual studio c#
+
+When you run it, it prompts you for a password, this password is use to generate a key that encrypts the knock client config information, there currently isn't a way to change the password.  This client also currently does not support the port specifier that the python knock client allows.
