@@ -1,0 +1,7 @@
+This release includes pre-built kernel module and iptables dynamic lib for use with vyatta community edition release 5
+
+It works like normal, though you don't have state tracking by default so the -m state --state NEW type stuff won't work out of the box
+
+
+To install the pre-built stuff just cd into the vyatta-5 directory and type ./install.sh
+It'll put the libipt_pkd.so in /lib/xtables and ipt_pkd.ko in /lib/modules/<kernel name>/extra
