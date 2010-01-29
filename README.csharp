@@ -1,0 +1,3 @@
+New knock client written in c# tested on both windows and linux.  Compiled exe in knock_csharp/knock/bin/Release/knock.exe
+
+Written using monodevelop though the project will probably work in visual studio c#
