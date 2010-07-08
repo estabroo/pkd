@@ -36,3 +36,6 @@
 	* added pre-compiled vyatta-5 stuff
 	* switched proc output to be inside framesize (newer gcc complained)
 	* c# knock client, encrypts config information
+
+1.7 20100708 9:18
+	* checked against 1.4.8 iptables and 2.6.34 kernel

@@ -41,8 +41,9 @@ knock.c       -- client knock program         becomes knock
 knock.py      -- client knock in python       stays   knock.py
 ipt_pkd.h     -- common header
 
-knock (c version) gets the host (and optional tag) from the command line and then asks for a password
+knock (c version) gets the host (and optional tag) from the command line and then asks for a key
 knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.  knock.py has a compatibility mode for older knock packets, just add old=1 to an entry you want to use the previous packet style.
+knock.exe (c# version), gui version, stores the keys encrypted in a per-user config file, it asks you for a password and shows you the knock key entries that are available using that password.
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
 
@@ -50,9 +51,11 @@ The Makefile tries to make a best guess as to where to put the userspace iptable
 
 The kernel module uses the kernel installer so who knows where it puts it.  Also sometimes you have to manually run depmod -a afterward, if you see an error like, iptables: No chain/target/match by that name, then most likely depmod -a will fix it. On my system its been putting the module in /lib/modules/<kernel>/extra.  
 
-knock and knock.py don't get put anywhere, so put them whereever you'd like (I have them in ~/bin).
+knock, knock.py, and knock.exe don't get put anywhere, so put them whereever you'd like (I have them in ~/bin).
 
-You might need to set the IPT_VERS in the Makefile manually.  It tries to get it by running iptables -V. I tested it with 1.3.6, 1.3.8, 1.4.0, 1.4.1.1, and 1.4.2 it seemed to be fine with those versions. The headers in 1.4.2 didn't seem to have any changes that affected the pkd code so I just linked 1.4.2 include to 1.4.1.1 include, same for 1.4.3-1.4.6
+You might need to set the IPT_VERS in the Makefile manually.  It tries to get it by running iptables -V. I tested it with 1.3.6, 1.3.8, 1.4.0, 1.4.1.1, and 1.4.2 it seemed to be fine with those versions. The headers in 1.4.2 didn't seem to have any changes that affected the pkd code so I just linked 1.4.2 include to 1.4.1.1 include, same for 1.4.3-1.4.8
+
+A quick note on the vyatta-5 prebuild, just copy the vyatta-5 directory over to your vyatta-5 box and run the install.sh script. I have no idea what you'd need to do to make persitent rules, guessing you could use some custom firewall rule, otherwise I think you'd need to add them to one of the boot scripts.
 
 Eric 
 
