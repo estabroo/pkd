@@ -96,9 +96,12 @@ ipt_pkd_match(const struct sk_buff *skb,
               const struct net_device *in, const struct net_device *out,
               const struct xt_match *match, const void *matchinfo,
               int offset, unsigned int protoff, bool *hotdrop)
-#else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35))
 static bool
 ipt_pkd_match(const struct sk_buff *skb, const struct xt_match_param *params)
+#else
+static bool
+ipt_pkd_match(const struct sk_buff *skb, struct xt_action_param *params)
 #endif
 
 {
