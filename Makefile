@@ -72,7 +72,7 @@ knock.o: knock.c
 	${CC} -g -c $+
 
 knock: knock.o
-	${CC} -o $@ $+ -lssl
+	${CC} -o $@ $+ -lssl -lcrypto
 
 libipt_pkd.o: libipt_pkd.c
 	echo ${IPT_VERS}

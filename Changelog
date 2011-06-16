@@ -39,3 +39,8 @@
 
 1.7 20100708 9:18
 	* checked against 1.4.8 iptables and 2.6.34 kernel
+
+1.8 mystery
+
+1.9 20110616 11:45
+	* checked against iptables 1.4.10, 1.4.11.1 and kernel 2.6.39
