@@ -52,3 +52,4 @@
 	* reworked proc fs stuff to accomodate 3.x kernels
 	  this moves it to /proc/ipt_pkd/stats instead of wherever it was before
 	  and is turned off for kernels >= 3.7
+	* made knock.py a module to promote reuse in scripts
