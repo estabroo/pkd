@@ -42,7 +42,11 @@ knock.py      -- client knock in python       stays   knock.py
 ipt_pkd.h     -- common header
 
 knock (c version) gets the host (and optional tag) from the command line and then asks for a key
-knock.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.  knock.py has a compatibility mode for older knock packets, just add old=1 to an entry you want to use the previous packet style.
+
+knock_original.py (python version) reads its information out of an ini file (default ~/.ipt_pkd.ini) and example ini file is included in the distribution.  knock.py has a compatibility mode for older knock packets, just add old=1 to an entry you want to use the previous packet style. 
+
+knock.py (python module version) module version of knock.py, includes a main so you can use it like the original or import it into your own script
+
 knock.exe (c# version), gui version, stores the keys encrypted in a per-user config file, it asks you for a password and shows you the knock key entries that are available using that password.
 
 To build you need your kernel headers for the kernel module, iptables-dev for the iptables user space portion, and libssl-dev for knock as it uses the sha256 library from openssl.  Then just make; make install.  For the make install you need to run as root. 
