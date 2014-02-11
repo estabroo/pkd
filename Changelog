@@ -44,3 +44,11 @@
 
 1.9 20110616 11:45
 	* checked against iptables 1.4.10, 1.4.11.1 and kernel 2.6.39
+
+1.10 not sure
+
+1.11 20140211 12:00 CST
+	* check against iptables 1.4.21 and kernels 3.4 and 3.10
+	* reworked proc fs stuff to accomodate 3.x kernels
+	  this moves it to /proc/ipt_pkd/stats instead of wherever it was before
+	  and is turned off for kernels >= 3.7
