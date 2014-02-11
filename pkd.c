@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007,2008 Eric Estabrooks <eric@urbanrage.com>
+ * Copyright (c) 2007,2008,2012,2013 Eric Estabrooks <eric@urbanrage.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -11,7 +11,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-#include <linux/moduleparam.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/random.h>
@@ -80,8 +80,11 @@ static unsigned char _pkd_next_sem = 0;
 static DEFINE_SPINLOCK(_pkd_lock);
 static DEFINE_SPINLOCK(_pkd_pkt_lock);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
 #ifdef CONFIG_PROC_FS
+static struct proc_dir_entry *pkd_dir;
 static struct proc_dir_entry *proc_entry;
+#endif
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,23))
@@ -304,6 +307,8 @@ static struct xt_match pkd_match = {
 	.me		= THIS_MODULE,
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
+#ifdef CONFIG_PROC_FS
 static int proc_pkd_read(char* page, char** start, off_t off,
                          int count, int *eof, void *data) {
   int len;
@@ -349,6 +354,8 @@ static int proc_pkd_read(char* page, char** start, off_t off,
 
   return len;
 }
+#endif
+#endif
 
 static int __init ipt_pkd_init(void)
 {
@@ -393,19 +400,30 @@ static int __init ipt_pkd_init(void)
     pkd_phead = 0;
 
     err = xt_register_match(&pkd_match);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
 #ifdef CONFIG_PROC_FS
     if (err) {
       return err;
     }
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
-    proc_entry = create_proc_read_entry("ipt_pkd", 0400, init_net.proc_net, proc_pkd_read, NULL);
-#else
-    proc_entry = create_proc_read_entry("ipt_pkd", 0400, proc_net, proc_pkd_read, NULL);
-#endif
-    if (proc_entry == NULL) {
+    pkd_dir = proc_mkdir("ipt_pkd", NULL);
+    if (pkd_dir == NULL) {
       xt_unregister_match(&pkd_match);
       err = -ENOMEM;
+    } else {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+      proc_entry = proc_create_data("stats", 0400, pkd_dir, NULL, NULL);
+#else
+      proc_entry = create_proc_entry("stats", 0400, pkd_dir);
+#endif
+      if (proc_entry != NULL) {
+        proc_entry->read_proc = proc_pkd_read;
+        proc_entry->data = NULL;
+      } else {
+        xt_unregister_match(&pkd_match);
+        err = -ENOMEM;
+      }
     }
+#endif
 #endif
     return err;
 }
@@ -422,11 +440,14 @@ static void __exit ipt_pkd_exit(void)
       	crypto_free_hash(pkd_buffers[i].tfm);
       }
     }
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
 #ifdef CONFIG_PROC_FS
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23))
-    remove_proc_entry("ipt_pkd", init_net.proc_net);
-#else
-    remove_proc_entry("ipt_pkd", proc_net);
+    if (pkd_dir != NULL) {
+      if (proc_entry != NULL) {
+        remove_proc_entry("stats", pkd_dir);
+      }
+      remove_proc_entry("ipt_pkd", NULL);
+    }
 #endif
 #endif
     xt_unregister_match(&pkd_match);
