@@ -1,6 +1,6 @@
-#!/usr/bin/python2.5
+#!/usr/bin/env python
 #
-# Copyright (c) 2007,2008 Eric Estabrooks <eric@urbanrage.com>
+# Copyright (c) 2007,2008,2013 Eric Estabrooks <eric@urbanrage.com>
 #
 # Implements basic client knock program in python
 # host, key, tag data is stored in an ini style file
