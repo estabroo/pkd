@@ -127,9 +127,9 @@ def __main():
                 key = args.key
                 port = args.port
                 tag = args.tag
-                k = Knock(host, key, tag, False)
+                k = Knock(site, key, tag, False)
                 k.knock(port)
-                if not args.quiet: print "Sent knock packet to", host
+                if not args.quiet: print "Sent knock packet to", site
             else:
                 if not args.quiet: print "Section [", site, "] doesn't exist in", options.configfile
 
