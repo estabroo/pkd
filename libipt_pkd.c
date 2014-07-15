@@ -94,10 +94,8 @@ static int parse(int c, char** argv, int invert, unsigned int* flags, const stru
   }; break;
   case 'w' : {
     info->window = atoi(optarg);
-    if (info->window >= 0) {
-      ret = 1;
-    }
     *flags |= 2;
+    ret = 1;
   }; break;
   case 't' : {
     memset(info->tag, 0, PKD_TAG_SIZE);
@@ -147,15 +145,9 @@ static void print(const struct ipt_ip* ip, const struct ipt_entry_match* match, 
     for (i=0; i < PKD_KEY_SIZE; i++) {
       printf("%02x", info->key[i]);
     }
-    printf(" ");
   
-    if (info->window >= 0) {
-      printf("window: %u ", info->window);
-    } else {
-      printf("window: 10 ");
-    }
-
-    printf("tag: 0x");
+    printf(" window: %u", info->window);
+    printf(" tag: 0x");
     for (i=0; i < PKD_TAG_SIZE; i++) {
       printf("%02x", info->tag[i]);
     }
@@ -173,18 +165,12 @@ static void save(const struct ipt_ip* ip, const struct ipt_entry_match* match)
   int                  i;
 
   if (info != NULL) {
-    printf("--key 0x");
+    printf(" --key 0x");
     for (i=0; i < PKD_KEY_SIZE; i++) {
       printf("%02x", info->key[i]);
     }
-    printf(" ");
-  
-    if (info->window >= 0) {
-      printf("--window %u ", info->window);
-    } else {
-      printf("--window 10 ");
-    }
-    printf("--tag 0x");
+    printf(" --window %u", info->window);
+    printf(" --tag 0x");
     for (i=0; i < PKD_TAG_SIZE; i++) {
       printf("%02x", info->tag[i]);
     }

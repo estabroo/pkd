@@ -1,6 +1,6 @@
 #!/usr/bin/make
 
-PKD_VERSION = 1.11
+PKD_VERSION = 1.12
 
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build

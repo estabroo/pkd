@@ -43,7 +43,7 @@ int setup_udp_socket(char* host, int port, char address[20]) {
   h_ent = gethostbyname(host);
   if (h_ent->h_addrtype != AF_INET) {
     fprintf(stderr, "knock (ipt_pkd) currently only supports ipv4\n");
-    exit(0);
+    exit(1);
   }
   memset(address, 0, 20);
   taddress = inet_ntoa(*((struct in_addr*)h_ent->h_addr_list[0]));
@@ -53,11 +53,15 @@ int setup_udp_socket(char* host, int port, char address[20]) {
   sfd = socket(PF_INET, SOCK_DGRAM, 0);
   if (sfd < 0) {
     perror("knock (ipt_pkd) Couldn't open a socket");
-    exit(0);
+    exit(2);
   }
   
-  setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (char *)&option_on,
-             sizeof(option_on));
+  error = setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (char *)&option_on,
+                     sizeof(option_on));
+  if (error != 0) {
+    perror("Setting address reuse failed");
+    exit(2);
+  }
   
   /* set up source sock_addr structure */
   memset(&saddr, 0, sizeof(saddr));
@@ -69,7 +73,7 @@ int setup_udp_socket(char* host, int port, char address[20]) {
   if (error < 0) {
     perror("knock couldn't bind socket to address");
     close(sfd);
-    exit(0);
+    exit(2);
   }
   
   return sfd;
@@ -78,7 +82,7 @@ int setup_udp_socket(char* host, int port, char address[20]) {
 void usage(char* argv[]) {
   fprintf(stderr, "usage: %s [-o] host_to_knock [tag [port]]\n", argv[0]);
   fprintf(stderr, " -o use old packet format (pre 1.0 pkd installs)\n");
-  exit(0);
+  exit(1);
 }
 
 #define hex(a) ((a) >= 'a' ? ((a) - 'a' + 10) : ((a) - '0'))
@@ -91,6 +95,7 @@ int main (int argc, char* argv[]) {
    unsigned char      hport[4];
    int                err;
    int                i,j;
+   ssize_t            n;
    struct timeval     current_time;
    struct termios     term;
    char*              ptr;
@@ -124,13 +129,13 @@ int main (int argc, char* argv[]) {
    err = tcgetattr(fileno(stdin), &term);
    if (err != 0) {
      perror("Couldn't get terminal attributes");
-     exit(0);
+     exit(3);
    }
    term.c_lflag &= ~ECHO;
    err = tcsetattr(fileno(stdin), TCSANOW, &term);
    if (err != 0) {
      perror("Couldn't set terminal attributes");
-     exit(0);
+     exit(3);
    }
    memset(tkey, 0, sizeof(tkey));
    fprintf(stderr, "key: ");
@@ -139,7 +144,7 @@ int main (int argc, char* argv[]) {
    term.c_lflag |= ECHO;
    err = tcsetattr(fileno(stdin), TCSANOW, &term);
 
-   if (tkey[strlen(tkey)-1] = '\n') {
+   if (tkey[strlen(tkey)-1] == '\n') {
      tkey[strlen(tkey)-1] = '\0';
    }
    memset(key, 0, sizeof(key));
@@ -168,12 +173,15 @@ int main (int argc, char* argv[]) {
    /* get some random bits */
    fd = open("/dev/urandom", O_RDONLY);
    if (fd >= 0) {
-     read(fd, randbits, 12);
+     n = read(fd, randbits, 12);
      close(fd);
-   } else {
-     for (i=0; i < 12; i++) {
-       randbits[i] = random() % 256;
+     if (n != 12) {
+       fprintf(stderr, "Couldn't read /dev/urandom, exiting\n");
+       exit(4);
      }
+   } else {
+     perror("Couldn't read /dev/urandom, exiting");
+     exit(4);
    }
 
    if (argc < (3+old)) {
@@ -186,11 +194,11 @@ int main (int argc, char* argv[]) {
          if (!isxdigit(ptr[i])) break;
          h = hex(tolower(ptr[i])) << 4;
          if (!isxdigit(ptr[++i])) {
-           key[j++] = h;
+           tag[j++] = h;
            break;
          }
          h |= hex(tolower(ptr[i]));
-         key[j] = h;
+         tag[j] = h;
        }
      } else {
        strncpy(tag, ptr, PKD_TAG_SIZE);
@@ -214,7 +222,7 @@ int main (int argc, char* argv[]) {
    err = SHA256_Init(&sha_c);
    if (err == 0) {
      fprintf(stderr, "SHA256_Init failed %d\n", err);
-     exit(0);
+     exit(5);
    }
 
    memset(packet, 0, sizeof(packet));
@@ -251,12 +259,12 @@ int main (int argc, char* argv[]) {
    }
    if (err == 0) {
      fprintf(stderr, "SHA256_Update failed %d\n", err);
-     exit(0);
+     exit(5);
    }
    err = SHA256_Final(md, &sha_c);
    if (err == 0) {
      fprintf(stderr, "SHA256_Final failed\n");
-     exit(0);
+     exit(5);
    }
 
    /* copy hash results to the packet */
@@ -274,7 +282,11 @@ int main (int argc, char* argv[]) {
    saddr.sin_port = htons(port);
 
    /* send the packet */
-   sendto(sfd, packet+4, 24+SHA256_DIGEST_LENGTH, 0, (const struct sockaddr*)&saddr, sizeof(saddr));
+   n = sendto(sfd, packet+4, 24+SHA256_DIGEST_LENGTH, 0, (const struct sockaddr*)&saddr, sizeof(saddr));
+   if (n < 1) {
+     perror("Failed to send packet");
+     exit(2);
+   }
    close(sfd);
    exit(0);
 }
