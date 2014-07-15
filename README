@@ -4,19 +4,25 @@ The knock packet is a sha256 of a timestamp, some random bytes, a small header, 
 
 It has limited proc support.  It opens an entry /proc/net/ipt_pkd.  Reading this file (with cat, less, ...) gives information about packets outside of the time window and how many replayed packets it thinks it has seen, and the ports + last timestamps of replayed packets that it has in it's packet queue.
 
-ipt_pkd has two options:
---key <key>       Sets the shared key, it's up to 40 bytes long and can be entered in as hex by starting it with 0x.
-                  The remainder of the key is zero filled.      --key 0xaa09e4ff
+ipt_pkd has three options:
+--key <key>       Sets the shared key, it's up to 40 bytes long and can be
+                  entered in as hex by starting it with 0x.
+                  The remainder of the key is zero filled.
 
---window <time>   Time in seconds +- that the packet can be different from the computer.  Default is 10 which
-                  gives a 20 second window for the packet to arrive.  If your clocks are close in time you can
-                  reduce that, say if they are synced to an ntp server.  *NOTE* You can also set the window to 0
-                  and skip the time check, nice for virtual machines whose clocks might be messed up.
-                  Be aware that turning off the time check means packets can replayed (at the moment) at will.
+--window <time>   Time in seconds +- that the packet can be different from the
+                  computer.  Default is 10 which gives a 20 second window for
+                  the packet to arrive.  If your clocks are close in time you
+                  can reduce that, say if they are synced to an ntp server.
+                  *NOTE* You can also set the window to 0 and skip the time
+                  check, nice for virtual machines whose clocks might be messed up.
+                  Be aware that turning off the time check means packets can
+                  replayed (at the moment) at will.
 
---tag <tag>       Sets the tag for this knock key.  Use different tags for different keys on the same machine.
-                  This speeds up processing as the knock doesn't have to be rehashed for every key check.
-                  Default tag is PKD0, the tag is up to 4 bytes and can be entered as hex by starting it with 0x.
+--tag <tag>       Sets the tag for this knock key.  Use different tags for
+                  different keys on the same machine.  This speeds up processing
+                  as the knock doesn't have to be rehashed for every key check.
+                  Default tag is PKD0, the tag is up to 4 bytes and can be
+                  entered as hex by starting it with 0x.
                   The remainder of the tag is zero filled.
 
 Some examples:
@@ -63,7 +69,7 @@ A quick note on the vyatta-5 prebuild, just copy the vyatta-5 directory over to 
 
 Eric 
 
-eric@urbanrage.com
+estabroo@gmail.com
 
 
-The release includes headers from iptables-1.4.0 & 1.4.1.1.  I did this because iptables-dev for 1.4.0 on debian systems at least no longer includes the headers required to build this extension (I just kind of figured 1.4.1.1 would be the same, but I could be wrong).
+The release includes headers from iptables-1.4.0 & 1.4.1.1.  I did this because iptables-dev for 1.4.0 on debian systems at least no longer includes the headers required to build this extension.

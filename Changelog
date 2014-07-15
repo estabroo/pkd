@@ -55,6 +55,8 @@
 	* made knock.py a module to promote reuse in scripts
 
 1.12 not sure
+	* added --key option to knock to allow the key to be specified on the
+	  command line (thanks thuna-garry)
 
 1.13 20140715
     * fixed save/restore bug (regression), missing a space before --key parameter
