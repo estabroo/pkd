@@ -53,3 +53,10 @@
 	  this moves it to /proc/ipt_pkd/stats instead of wherever it was before
 	  and is turned off for kernels >= 3.7
 	* made knock.py a module to promote reuse in scripts
+
+1.12 not sure
+
+1.13 20140715
+    * fixed save/restore bug (regression), missing a space before --key parameter
+	* updated makefile to check for iptables in /sbin/ and /usr/sbin if it
+	  isn't in your path

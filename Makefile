@@ -1,12 +1,22 @@
 #!/usr/bin/make
 
-PKD_VERSION = 1.12
-
+PKD_VERSION = 1.13
 KVERSION=$(shell uname -r)
 KERNEL_DIR=/lib/modules/$(KVERSION)/build
+IPTABLES := $(shell export PATH=$(PATH):/sbin:/usr/sbin ; which iptables || echo fail)
 
-IPTABLES := $(shell which iptables)
-IPT_VERSION := $(shell $(IPTABLES) -V)
+.PHONY: all
+all: knock lib module
+
+.PHONY: iptables_check
+iptables_check:
+ifeq ($(IPTABLES), fail)
+	$(error iptables not in PATH $(PATH))
+endif
+
+.PHONY: iptables_version
+iptables_version:
+IPT_VERSION= $(shell $(IPTABLES) -V)
 IPT_VERS := $(subst iptables v,,${IPT_VERSION})
 IPT_SVERS := $(shell echo $(IPT_VERS) | cut -d. -f1,2)
 ifeq ($(IPT_VERS), '')
@@ -14,25 +24,22 @@ ifeq ($(IPT_VERS), '')
 	IPT_SVERS := 1.3
 endif
 IPT_VERS_STRIP := $(strip $(IPT_SVERS))
-
 ifeq ($(DESTDIR), '')
 	DESTDIR=/usr/local
 endif
-
 ifeq ($(IPT_VERS_STRIP),1.3)
 	IPT_CFLAGS = -I.
 else
 	IPT_CFLAGS = -I. -I./include-$(IPT_VERS) -I${KERNEL_DIR}/include -DIPT14=1
 endif
 
-
+.PHONY: lib_setup
+lib_setup: iptables_check iptables_version
 libXTABLES_T := $(shell strings $(IPTABLES) | grep libxtables)
 libXTABLES := $(strip $(libXTABLES_T))
 ifeq ($(libXTABLES), )
-
 	LIBDIR_T := $(shell strings $(IPTABLES) | grep -A 1 TABLES | grep ^/ )
 	LIBDIR := $(strip $(LIBDIR_T))
-
 	XTABLES_T := $(shell strings $(IPTABLES) | grep XTABLES)
 	XTABLES := $(strip $(XTABLES_T))
 	ifeq ($(XTABLES), XTABLES_LIBDIR)
@@ -48,10 +55,7 @@ else
 		IPT_CFLAGS += -DXTABLES_VERSION=$(LIBID)
 	endif
 endif
-	
 
-.PHONY: all
-all: knock lib module
 
 .PHONY: install
 install: install-lib install-module
@@ -75,14 +79,14 @@ knock: knock.o
 	${CC} -o $@ $+ -lssl -lcrypto
 
 libipt_pkd.o: libipt_pkd.c
-	echo ${IPT_VERS}
+	@echo iptables version ${IPT_VERS}
 	${CC} ${IPT_CFLAGS} -rdynamic -fPIC -c -DIPTABLES_VERSION=\"${IPT_VERS}\" -DPKD_VERSION=\"${PKD_VERSION}\" -o $@ $+
 
 libipt_pkd.so: libipt_pkd.o
 	${CC} -fPIC -shared -o $@ $+
 
 .PHONY: lib
-lib: libipt_pkd.so
+lib: lib_setup libipt_pkd.so
 
 .PHONY: install-lib
 install-lib: lib
